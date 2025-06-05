@@ -7,6 +7,11 @@ __pycache__/
 .Python
 *.env
 
+# Node.js
+node_modules/
+dist/
+build/
+
 # Sessions
 sessions/
 
@@ -21,3 +26,7 @@ logs/
 
 # Virtual environment
 /music_scheduler/venv/
+
+# OS-specific
+.DS_Store
+Thumbs.db
