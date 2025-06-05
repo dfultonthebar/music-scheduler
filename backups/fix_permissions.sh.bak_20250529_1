@@ -1,0 +1,46 @@
+#!/bin/bash
+
+echo "Starting fix_permissions.sh logging at $(date)"
+exec > >(tee -a /music_scheduler/logs/fix_permissions.log) 2>&1
+
+echo "Debug: Logging initialized for fix_permissions.sh"
+
+# Fix static directory permissions for Nginx
+echo "Fixing static directory permissions for Nginx..."
+chown -R musicu:www-data /music_scheduler/static
+chmod -R 775 /music_scheduler/static
+
+# Fix permissions for other files, excluding venv
+echo "Fixing permissions for other files..."
+find /music_scheduler -path /music_scheduler/venv -prune -o -type d -exec chmod 775 {} \;
+find /music_scheduler -path /music_scheduler/venv -prune -o -type f -exec chmod 664 {} \;
+chown -R musicu:www-data /music_scheduler
+
+# Ensure venv permissions remain intact
+chmod -R 755 /music_scheduler/venv
+chown -R musicu:www-data /music_scheduler/venv
+
+# Ensure run_app.sh is executable
+chmod +x /music_scheduler/run_app.sh
+
+# Generate favicon.ico using ImageMagick
+echo "Generating favicon.ico with ImageMagick..."
+if command -v convert >/dev/null 2>&1; then
+    sudo convert -size 16x16 xc:blue /music_scheduler/static/favicon.ico
+    if [ $? -eq 0 ]; then
+        echo "favicon.ico successfully created."
+        ls -l /music_scheduler/static/favicon.ico
+    else
+        echo "Error: Failed to create favicon.ico with ImageMagick."
+        exit 1
+    fi
+else
+    echo "Error: ImageMagick not found. Please install ImageMagick (e.g., sudo apt install imagemagick)."
+    exit 1
+fi
+
+# Set permissions for the favicon
+sudo chown musicu:www-data /music_scheduler/static/favicon.ico
+sudo chmod 664 /music_scheduler/static/favicon.ico
+
+echo "Permissions fixed! Check the setup log for details: cat /music_scheduler/logs/fix_permissions.log"

@@ -1,0 +1,35 @@
+#!/bin/bash
+
+echo "Starting fix_permissions.sh logging at $(date)"
+exec > >(tee -a /music_scheduler/logs/fix_permissions.log) 2>&1
+
+echo "Debug: Logging initialized for fix_permissions.sh"
+
+# Fix static directory permissions for Nginx
+echo "Fixing static directory permissions for Nginx..."
+chown -R musicu:www-data /music_scheduler/static
+chmod -R 644 /music_scheduler/static/*
+chmod -R 755 /music_scheduler/static
+
+# Fix permissions for other files
+echo "Fixing permissions for other files..."
+chown -R musicu:www-data /music_scheduler
+chmod -R 644 /music_scheduler/*
+chmod -R 755 /music_scheduler
+
+# Generate favicon.ico with ImageMagick (if needed)
+echo "Generating favicon.ico with ImageMagick..."
+convert -size 16x16 xc:transparent /music_scheduler/static/favicon.ico || true
+
+# Verify favicon.ico presence and permissions
+echo "Verifying favicon.ico presence..."
+if [ -f /music_scheduler/static/favicon.ico ]; then
+  echo "favicon.ico successfully created."
+  ls -l /music_scheduler/static/favicon.ico
+  chown musicu:www-data /music_scheduler/static/favicon.ico
+  chmod 644 /music_scheduler/static/favicon.ico
+else
+  echo "Error: favicon.ico not found."
+fi
+
+echo "Permissions fixed! Check the setup log for details: cat /music_scheduler/logs/fix_permissions.log"

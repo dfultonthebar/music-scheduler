@@ -1,0 +1,47 @@
+from flask import Flask, request, jsonify, session
+import mysql.connector
+import bcrypt
+import logging
+from datetime import datetime, timedelta
+import os
+
+# Configure logging
+logging.basicConfig(
+    filename='/music_scheduler/logs/flask_app.log',
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s'
+)
+
+app = Flask(__name__)
+app.secret_key = os.urandom(24)
+
+db_config = {
+    'host': 'localhost',
+    'user': 'musicu_user',
+    'password': 'MusicU2025',
+    'database': 'musicu_db'
+}
+
+@app.route('/api/login', methods=['POST'])
+def login():
+    data = request.get_json()
+    username = data.get('username')
+    password = data.get('password')
+    logging.info(f"Login attempt for username: {username}")
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor()
+    cursor.execute("SELECT password FROM users WHERE username = %s", (username,))
+    stored_password = cursor.fetchone()[0]
+    cursor.close()
+    conn.close()
+    if bcrypt.checkpw(password.encode('utf-8'), stored_password.encode('utf-8')):
+        session['username'] = username
+        logging.info(f"Login successful for {username}")
+        return jsonify({"message": "Login successful"})
+    logging.warning(f"Invalid credentials for {username}")
+    return jsonify({"error": "Invalid credentials"}), 401
+
+# Add more routes as needed...
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8000)

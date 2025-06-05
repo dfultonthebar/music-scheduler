@@ -1,0 +1,13 @@
+{
+  "email": {
+    "smtp_server": "smtp.example.com",
+    "smtp_port": 587,
+    "sender_email": "your-email@example.com",
+    "sender_password": "your-password"
+  },
+  "sms": {
+    "twilio_account_sid": "your-account-sid",
+    "twilio_auth_token": "your-auth-token",
+    "twilio_phone_number": "+1234567890"
+  }
+}

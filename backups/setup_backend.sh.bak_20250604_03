@@ -1,0 +1,119 @@
+#!/bin/bash
+
+echo "Starting setup_backend.sh logging at $(date)"
+exec > >(tee -a /music_scheduler/logs/setup_backend.log) 2>&1
+
+echo "Debug: Logging initialized for setup_backend.sh"
+
+# Ensure virtual environment exists
+if [ ! -d "/music_scheduler/venv" ]; then
+    echo "Creating virtual environment..."
+    python3 -m venv /music_scheduler/venv
+    if [ $? -ne 0 ]; then
+        echo "Error: Failed to create virtual environment"
+        exit 1
+    fi
+fi
+
+# Activate virtual environment and install dependencies
+echo "Installing Flask and dependencies in virtual environment..."
+source /music_scheduler/venv/bin/activate
+pip install --upgrade pip
+pip install flask mysql-connector-python bcrypt
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to install Flask dependencies"
+    deactivate
+    exit 1
+fi
+
+echo "Creating app.py..."
+cat <<EOF > /music_scheduler/app.py
+from flask import Flask, request, jsonify, session
+import mysql.connector
+import bcrypt
+import logging
+from datetime import datetime, timedelta
+import os
+
+# Configure logging
+logging.basicConfig(
+    filename='/music_scheduler/logs/flask_app.log',
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s'
+)
+
+app = Flask(__name__)
+app.secret_key = os.urandom(24)
+
+db_config = {
+    'host': 'localhost',
+    'user': 'musicu_user',
+    'password': 'MusicU2025',
+    'database': 'musicu_db'
+}
+
+@app.route('/api/login', methods=['POST'])
+def login():
+    data = request.get_json()
+    username = data.get('username')
+    password = data.get('password')
+    logging.info(f"Login attempt for username: {username}")
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor()
+    cursor.execute("SELECT password FROM users WHERE username = %s", (username,))
+    stored_password = cursor.fetchone()[0]
+    cursor.close()
+    conn.close()
+    if bcrypt.checkpw(password.encode('utf-8'), stored_password.encode('utf-8')):
+        session['username'] = username
+        logging.info(f"Login successful for {username}")
+        return jsonify({"message": "Login successful"})
+    logging.warning(f"Invalid credentials for {username}")
+    return jsonify({"error": "Invalid credentials"}), 401
+
+# Add more routes as needed...
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8000)
+EOF
+
+# Deactivate virtual environment
+deactivate
+
+# Ensure Gunicorn service file exists
+echo "Creating Gunicorn service file..."
+cat <<EOF > /etc/systemd/system/music_scheduler_gunicorn.service
+[Unit]
+Description=Gunicorn instance to serve Music Scheduler
+After=network.target
+
+[Service]
+User=root
+Group=www-data
+WorkingDirectory=/music_scheduler
+Environment="PATH=/music_scheduler/venv/bin"
+ExecStart=/music_scheduler/venv/bin/gunicorn --workers 3 --bind 127.0.0.1:8000 -m 007 app:app
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Reload systemd and start Gunicorn
+echo "Reloading systemd daemon..."
+systemctl daemon-reload
+
+echo "Starting Gunicorn service..."
+systemctl start music_scheduler_gunicorn.service
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to start Gunicorn service"
+    journalctl -u music_scheduler_gunicorn.service -n 50
+    exit 1
+fi
+
+echo "Enabling Gunicorn service..."
+systemctl enable music_scheduler_gunicorn.service
+
+echo "Checking Gunicorn service status..."
+systemctl status music_scheduler_gunicorn.service
+
+echo "Backend setup complete! Check the setup log for details: cat /music_scheduler/logs/setup_backend.log"

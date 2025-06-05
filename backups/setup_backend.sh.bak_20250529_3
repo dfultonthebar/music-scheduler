@@ -1,0 +1,271 @@
+#!/bin/bash
+
+echo "Starting setup_backend.sh logging at $(date)"
+exec > >(tee -a /music_scheduler/logs/setup_backend.log) 2>&1
+
+echo "Debug: Logging initialized for setup_backend.sh"
+
+# Clear old Flask app logs
+echo "Clearing old Flask app logs..."
+rm -f /music_scheduler/logs/flask_app.log
+touch /music_scheduler/logs/flask_app.log
+chown musicu:www-data /music_scheduler/logs/flask_app.log
+chmod 664 /music_scheduler/logs/flask_app.log
+
+# Create config.json with placeholder email and SMS settings
+echo "Creating config.json with placeholder email and SMS settings..."
+cat > /music_scheduler/config.json << 'EOF'
+{
+  "email": {
+    "smtp_server": "smtp.example.com",
+    "smtp_port": 587,
+    "sender_email": "your-email@example.com",
+    "sender_password": "your-password"
+  },
+  "sms": {
+    "twilio_account_sid": "your-account-sid",
+    "twilio_auth_token": "your-auth-token",
+    "twilio_phone_number": "+1234567890"
+  }
+}
+EOF
+
+# Create app.py with detailed logging
+echo "Creating app.py..."
+cat > /music_scheduler/app.py << 'EOF'
+from flask import Flask, request, jsonify, session
+import mysql.connector
+import bcrypt
+import jwt
+import logging
+import json
+
+app = Flask(__name__)
+app.secret_key = 'MusicU2025SecretKey'  # Replace with a secure key in production
+
+# Setup logging
+logging.basicConfig(filename='/music_scheduler/logs/flask_app.log', level=logging.INFO,
+                    format='%(asctime)s [%(levelname)s] %(message)s')
+
+# Load configuration
+with open('/music_scheduler/config.json', 'r') as f:
+    config = json.load(f)
+
+# Database connection
+db_config = {
+    'user': 'musicu_user',
+    'password': 'MusicU2025',
+    'host': 'localhost',
+    'database': 'musicu_db'
+}
+
+def get_db_connection():
+    try:
+        conn = mysql.connector.connect(**db_config)
+        logging.info("Successfully connected to the database")
+        return conn
+    except Exception as e:
+        logging.error(f"Failed to connect to the database: {str(e)}")
+        raise
+
+# Middleware to verify JWT token
+def verify_token():
+    token = request.headers.get('Authorization')
+    if not token:
+        return None
+    try:
+        data = jwt.decode(token, app.secret_key, algorithms=["HS256"])
+        return data['username']
+    except Exception as e:
+        logging.error(f"Token verification failed: {str(e)}")
+        return None
+
+@app.route('/api/check-auth', methods=['GET'])
+def check_auth():
+    username = session.get('username')
+    if username:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT role FROM users WHERE username = %s", (username,))
+        result = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        if result:
+            logging.info(f"Check-auth successful for username: {username}, role: {result[0]}")
+            return jsonify({'authenticated': True, 'role': result[0]})
+    logging.info("Check-auth: No authenticated user found")
+    return jsonify({'authenticated': False, 'role': None})
+
+@app.route('/api/login', methods=['POST'])
+def login():
+    data = request.get_json()
+    username = data.get('username')
+    password = data.get('password')
+
+    if not username or not password:
+        logging.warning(f"Missing username or password in login attempt")
+        return jsonify({'authenticated': False}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT password, role FROM users WHERE username = %s", (username,))
+    user = cursor.fetchone()
+    cursor.close()
+    conn.close()
+
+    if user:
+        stored_password = user[0].encode('utf-8')
+        logging.info(f"Stored hashed password for {username}: {stored_password}")
+        logging.info(f"Provided password: {password}")
+        if bcrypt.checkpw(password.encode('utf-8'), stored_password):
+            session['username'] = username
+            logging.info(f"Successful login for username: {username}")
+            return jsonify({'authenticated': True, 'role': user[1]})
+        else:
+            logging.warning(f"Password mismatch for username: {username}")
+    else:
+        logging.warning(f"User not found: {username}")
+    logging.warning(f"Failed login attempt for username: {username}")
+    return jsonify({'authenticated': False}), 401
+
+@app.route('/api/logout', methods=['POST'])
+def logout():
+    session.pop('username', None)
+    logging.info("User logged out")
+    return jsonify({'message': 'Logged out'})
+
+@app.route('/api/lessons', methods=['GET'])
+def get_lessons():
+    username = session.get('username')
+    if not username:
+        logging.warning("Unauthorized access attempt to /api/lessons")
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT role FROM users WHERE username = %s", (username,))
+    role = cursor.fetchone()[0]
+
+    if role != 'admin':
+        cursor.close()
+        conn.close()
+        logging.warning(f"Forbidden access to /api/lessons by user {username} with role {role}")
+        return jsonify({'error': 'Forbidden'}), 403
+
+    cursor.execute("SELECT id, student_name, instructor_id, lesson_date, lesson_time FROM lessons")
+    lessons = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    logging.info(f"Retrieved lessons for admin user {username}")
+    return jsonify({'lessons': [
+        {'id': l[0], 'student_name': l[1], 'instructor_id': l[2], 'lesson_date': str(l[3]), 'lesson_time': str(l[4])}
+        for l in lessons
+    ]})
+
+@app.route('/api/my-lessons', methods=['GET'])
+def get_my_lessons():
+    username = session.get('username')
+    if not username:
+        logging.warning("Unauthorized access attempt to /api/my-lessons")
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id FROM users WHERE username = %s AND role = 'instructor'", (username,))
+    instructor = cursor.fetchone()
+
+    if not instructor:
+        cursor.close()
+        conn.close()
+        logging.warning(f"Forbidden access to /api/my-lessons by user {username}")
+        return jsonify({'error': 'Forbidden'}), 403
+
+    instructor_id = instructor[0]
+    cursor.execute("SELECT id, student_name, lesson_date, lesson_time FROM lessons WHERE instructor_id = %s", (instructor_id,))
+    lessons = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    logging.info(f"Retrieved lessons for instructor {username}")
+    return jsonify({'lessons': [
+        {'id': l[0], 'student_name': l[1], 'lesson_date': str(l[2]), 'lesson_time': str(l[3])}
+        for l in lessons
+    ]})
+
+if __name__ == '__main__':
+    logging.info("Starting Flask app in debug mode")
+    app.run(debug=True)
+EOF
+
+# Create run_app.sh
+echo "Creating run_app.sh..."
+cat > /music_scheduler/run_app.sh << 'EOF'
+#!/bin/bash
+source /music_scheduler/venv/bin/activate
+exec gunicorn -b 127.0.0.1:8000 -w 4 app:app --log-file=/music_scheduler/logs/flask_app.log --log-level=info
+EOF
+chmod +x /music_scheduler/run_app.sh
+
+# Recreate virtual environment with Python 3.12
+echo "Recreating virtual environment with Python 3.12..."
+rm -rf /music_scheduler/venv
+python3.12 -m venv /music_scheduler/venv
+source /music_scheduler/venv/bin/activate
+
+# Install Python dependencies
+echo "Installing Python dependencies..."
+pip install --upgrade pip
+pip install flask mysql-connector-python gunicorn PyJWT bcrypt
+
+# Test database connection
+echo "Testing database connection..."
+python3 -c "import mysql.connector; conn = mysql.connector.connect(user='musicu_user', password='MusicU2025', host='localhost', database='musicu_db'); print('Connected successfully'); conn.close()"
+
+# Set initial permissions
+echo "Setting initial permissions..."
+chmod -R 755 /music_scheduler
+chown -R musicu:www-data /music_scheduler
+
+# Set up systemd service for Gunicorn
+echo "Setting up systemd service for Gunicorn..."
+cat > /etc/systemd/system/music_scheduler_gunicorn.service << 'EOF'
+[Unit]
+Description=Gunicorn instance to serve Music Scheduler
+After=network.target
+
+[Service]
+User=musicu
+Group=www-data
+WorkingDirectory=/music_scheduler
+Environment="PATH=/music_scheduler/venv/bin"
+ExecStart=/music_scheduler/venv/bin/gunicorn -b 127.0.0.1:8000 -w 4 app:app --log-file=/music_scheduler/logs/flask_app.log --log-level=info
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Reload systemd, enable, and restart the service
+systemctl daemon-reload
+systemctl enable music_scheduler_gunicorn
+systemctl stop music_scheduler_gunicorn 2>/dev/null || true
+systemctl start music_scheduler_gunicorn
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to start Gunicorn service"
+    journalctl -u music_scheduler_gunicorn.service -n 20 --no-pager
+    exit 1
+fi
+
+# Check Gunicorn service status
+echo "Checking Gunicorn service status..."
+systemctl status music_scheduler_gunicorn | grep 'Active:'
+journalctl -u music_scheduler_gunicorn.service -n 20 --no-pager
+
+if systemctl --quiet is-active music_scheduler_gunicorn; then
+    echo "Gunicorn service is running."
+else
+    echo "Error: Gunicorn service failed to start."
+    exit 1
+fi
+
+echo "Backend setup complete! Check the setup log for details: cat /music_scheduler/logs/setup_backend.log"

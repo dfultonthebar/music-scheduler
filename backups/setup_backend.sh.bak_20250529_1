@@ -1,0 +1,185 @@
+#!/bin/bash
+
+echo "Starting setup_backend.sh logging at $(date)"
+exec > >(tee -a /music_scheduler/logs/setup_backend.log) 2>&1
+
+echo "Debug: Logging initialized for setup_backend.sh"
+
+# Clear old Flask app logs
+echo "Clearing old Flask app logs..."
+> /music_scheduler/logs/flask_app.log
+
+# Create config.json with placeholder email and SMS settings
+echo "Creating config.json with placeholder email and SMS settings..."
+cat > /music_scheduler/config.json << 'EOF'
+{
+  "email": {
+    "smtp_server": "smtp.example.com",
+    "smtp_port": 587,
+    "sender_email": "noreply@example.com",
+    "sender_password": "password"
+  },
+  "sms": {
+    "twilio_account_sid": "your_twilio_account_sid",
+    "twilio_auth_token": "your_twilio_auth_token",
+    "twilio_phone_number": "+1234567890"
+  }
+}
+EOF
+
+# Create app.py
+echo "Creating app.py..."
+cat > /music_scheduler/app.py << 'EOF'
+import logging
+from flask import Flask, request, jsonify, session
+import mysql.connector
+import jwt
+import bcrypt
+
+# Configure logging
+logging.basicConfig(
+    filename='/music_scheduler/logs/flask_app.log',
+    level=logging.INFO,
+    format='%(asctime)s %(levelname)s: %(message)s'
+)
+
+app = Flask(__name__)
+app.secret_key = 'MusicU2025Secret'
+
+# Database configuration
+db_config = {
+    'user': 'musicu',
+    'password': 'MusicU2025',
+    'host': 'localhost',
+    'database': 'music_scheduler'
+}
+
+@app.route('/api/check-auth', methods=['GET'])
+def check_auth():
+    if 'user_id' in session:
+        try:
+            conn = mysql.connector.connect(**db_config)
+            cursor = conn.cursor()
+            cursor.execute("SELECT role FROM users WHERE id = %s", (session['user_id'],))
+            user = cursor.fetchone()
+            cursor.close()
+            conn.close()
+            if user:
+                return jsonify({'authenticated': True, 'role': user[0]})
+        except mysql.connector.Error as e:
+            logging.error(f"Database error: {e}")
+    return jsonify({'authenticated': False, 'role': None})
+
+@app.route('/api/login', methods=['POST'])
+def login():
+    data = request.get_json()
+    username = data.get('username')
+    password = data.get('password')
+
+    try:
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, password, role FROM users WHERE username = %s", (username,))
+        user = cursor.fetchone()
+        cursor.close()
+        conn.close()
+
+        if user and bcrypt.checkpw(password.encode('utf-8'), user[1].encode('utf-8')):
+            session['user_id'] = user[0]
+            logging.info(f"User {username} logged in successfully")
+            return jsonify({'authenticated': True, 'role': user[2]})
+        else:
+            logging.warning(f"Failed login attempt for username: {username}")
+            return jsonify({'authenticated': False, 'message': 'Invalid credentials'}), 401
+    except mysql.connector.Error as e:
+        logging.error(f"Database error during login: {e}")
+        return jsonify({'authenticated': False, 'message': 'Server error'}), 500
+
+@app.route('/api/logout', methods=['POST'])
+def logout():
+    session.pop('user_id', None)
+    return jsonify({'message': 'Logged out'})
+
+if __name__ == '__main__':
+    app.run(debug=True)
+EOF
+
+# Create run_app.sh
+echo "Creating run_app.sh..."
+cat > /music_scheduler/run_app.sh << 'EOF'
+#!/bin/bash
+cd /music_scheduler
+source venv/bin/activate
+exec gunicorn --bind 127.0.0.1:8000 app:app
+EOF
+chmod +x /music_scheduler/run_app.sh
+
+# Recreate virtual environment with Python 3.12
+echo "Recreating virtual environment with Python 3.12..."
+rm -rf /music_scheduler/venv
+python3.12 -m venv /music_scheduler/venv
+source /music_scheduler/venv/bin/activate
+
+# Install Python dependencies
+echo "Installing Python dependencies..."
+pip install --upgrade pip
+pip install flask mysql-connector-python gunicorn PyJWT bcrypt
+
+# Test database connection
+echo "Testing database connection..."
+python3 - << 'EOF'
+import mysql.connector
+try:
+    conn = mysql.connector.connect(
+        user='musicu',
+        password='MusicU2025',
+        host='localhost',
+        database='music_scheduler'
+    )
+    print("Connected successfully")
+    conn.close()
+except mysql.connector.Error as e:
+    print(f"Error: {e}")
+    exit(1)
+EOF
+
+# Set initial permissions
+echo "Setting initial permissions..."
+chown -R musicu:www-data /music_scheduler
+chmod -R 775 /music_scheduler
+
+# Set up systemd service for Gunicorn
+echo "Setting up systemd service for Gunicorn..."
+cat > /etc/systemd/system/music_scheduler.service << 'EOF'
+[Unit]
+Description=Music Lesson Scheduler Gunicorn App
+After=network.target
+
+[Service]
+User=musicu
+Group=www-data
+WorkingDirectory=/music_scheduler
+Environment="PATH=/music_scheduler/venv/bin"
+ExecStart=/music_scheduler/run_app.sh
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable music_scheduler
+systemctl start music_scheduler
+
+# Check Gunicorn service status
+echo "Checking Gunicorn service status..."
+systemctl status music_scheduler | grep 'Active:'
+
+if systemctl --quiet is-active music_scheduler; then
+    echo "Gunicorn service is running."
+else
+    echo "Error: Gunicorn service failed to start."
+    exit 1
+fi
+
+echo "Backend setup complete! Check the setup log for details: cat /music_scheduler/logs/setup_backend.log"

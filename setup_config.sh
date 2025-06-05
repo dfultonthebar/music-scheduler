@@ -1,0 +1,155 @@
+#!/bin/bash
+
+echo "Starting setup_config.sh logging at $(date)"
+exec > >(tee -a /music_scheduler/logs/setup_config.log) 2>&1
+
+echo "Debug: Logging initialized for setup_config.sh"
+
+# Update index.jsx with ConfigPage
+echo "Updating index.jsx with ConfigPage..."
+cat > /music_scheduler/src/index.jsx << 'EOF'
+import React, { useState, useEffect } from 'react';
+import ReactDOM from 'react-dom/client';
+import './index.css';
+
+const ConfigPage = () => {
+  return (
+    <div>
+      <h2>Configuration</h2>
+      <p>This is the configuration page.</p>
+    </div>
+  );
+};
+
+const App = () => {
+  const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userRole, setUserRole] = useState(null);
+  const [showConfig, setShowConfig] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/check-auth', { credentials: 'include' })
+      .then(res => res.json())
+      .then(data => {
+        setIsAuthenticated(data.authenticated);
+        setUserRole(data.role);
+        setLoading(false);
+      })
+      .catch(() => {
+        setLoading(false);
+      });
+  }, []);
+
+  if (loading) {
+    return <div className="text-red-500">Loading</div>;
+  }
+
+  if (showConfig) {
+    return <ConfigPage />;
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="container mx-auto p-4">
+        <h1 className="text-2xl font-bold mb-4">Login</h1>
+        <form onSubmit={(e) => {
+          e.preventDefault();
+          const username = e.target.username.value;
+          const password = e.target.password.value;
+          fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password }),
+            credentials: 'include',
+          })
+            .then(res => res.json())
+            .then(data => {
+              if (data.authenticated) {
+                setIsAuthenticated(true);
+                setUserRole(data.role);
+              } else {
+                alert('Login failed');
+              }
+            });
+        }} className="space-y-4">
+          <input type="text" name="username" placeholder="Username" className="border p-2 w-full" />
+          <input type="password" name="password" placeholder="Password" className="border p-2 w-full" />
+          <button type="submit" className="bg-blue-500 text-white p-2 w-full">Login</button>
+        </form>
+        <button onClick={() => setShowConfig(true)} className="mt-4 bg-gray-500 text-white p-2 w-full">Go to Config</button>
+      </div>
+    );
+  }
+
+  if (userRole === 'admin') {
+    return (
+      <div className="container mx-auto p-4">
+        <h1>Admin Dashboard</h1>
+        <button onClick={() => setShowConfig(true)} className="mt-4 bg-gray-500 text-white p-2">Go to Config</button>
+      </div>
+    );
+  }
+
+  if (userRole === 'instructor') {
+    return (
+      <div className="container mx-auto p-4">
+        <h1>Instructor Dashboard</h1>
+        <button onClick={() => setShowConfig(true)} className="mt-4 bg-gray-500 text-white p-2">Go to Config</button>
+      </div>
+    );
+  }
+
+  return <div className="container mx-auto p-4">Unauthorized</div>;
+};
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+EOF
+
+# Recreate index.html in the project root for Vite to use
+# This index.html will be processed by Vite and moved to the static/ directory with correct script references
+echo "Recreating index.html for Vite..."
+cat > /music_scheduler/index.html << 'EOF'
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Music Scheduler</title>
+  <link rel="stylesheet" href="/static/tailwind.css">
+  <link rel="icon" href="/static/favicon.ico">
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/index.jsx"></script>
+</body>
+</html>
+EOF
+
+# Rebuild React app with ConfigPage
+echo "Rebuilding React app with ConfigPage..."
+cd /music_scheduler
+if npm run build; then
+  echo "React app rebuilt successfully."
+else
+  echo "Error: Vite build failed for ConfigPage. Check logs for details."
+  exit 1
+fi
+
+# Rebuild Tailwind CSS
+echo "Rebuilding Tailwind CSS..."
+npx update-browserslist-db@latest
+npx tailwindcss -i /music_scheduler/src/index.css -o /music_scheduler/static/tailwind.css --minify
+if [ -f /music_scheduler/static/tailwind.css ]; then
+  echo "tailwind.css successfully rebuilt."
+  ls -l /music_scheduler/static/tailwind.css
+else
+  echo "Error: Failed to rebuild tailwind.css."
+  exit 1
+fi
+
+# Remove the incorrect index.html from /music_scheduler/ to ensure Nginx uses the one in static/
+echo "Removing incorrect index.html from /music_scheduler/..."
+rm -f /music_scheduler/index.html
+
+echo "Config setup complete! Check the setup log for details: cat /music_scheduler/logs/setup_config.log"

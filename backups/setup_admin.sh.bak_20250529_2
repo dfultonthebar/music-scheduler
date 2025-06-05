@@ -1,0 +1,181 @@
+#!/bin/bash
+
+echo "Starting setup_admin.sh logging at $(date)"
+exec > >(tee -a /music_scheduler/logs/setup_admin.log) 2>&1
+
+echo "Debug: Logging initialized for setup_admin.sh"
+
+# Update index.jsx with AdminDashboard
+echo "Updating index.jsx with AdminDashboard..."
+cat > /music_scheduler/src/index.jsx << 'EOF'
+import React, { useState, useEffect } from 'react';
+import ReactDOM from 'react-dom/client';
+import './index.css';
+
+const ConfigPage = () => {
+  return (
+    <div>
+      <h2>Configuration</h2>
+      <p>This is the configuration page.</p>
+    </div>
+  );
+};
+
+const AdminDashboard = () => {
+  const [lessons, setLessons] = useState([]);
+
+  useEffect(() => {
+    // Fetch lessons for admin
+    fetch('/api/lessons', { credentials: 'include' })
+      .then(res => res.json())
+      .then(data => setLessons(data.lessons || []))
+      .catch(() => setLessons([]));
+  }, []);
+
+  return (
+    <div className="container mx-auto p-4">
+      <h1 className="text-2xl font-bold mb-4">Admin Dashboard</h1>
+      <h2 className="text-xl mb-2">All Lessons</h2>
+      <ul>
+        {lessons.map(lesson => (
+          <li key={lesson.id} className="mb-2">
+            {lesson.student_name} with Instructor ID {lesson.instructor_id} on {lesson.lesson_date} at {lesson.lesson_time}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+};
+
+const App = () => {
+  const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userRole, setUserRole] = useState(null);
+  const [showConfig, setShowConfig] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/check-auth', { credentials: 'include' })
+      .then(res => res.json())
+      .then(data => {
+        setIsAuthenticated(data.authenticated);
+        setUserRole(data.role);
+        setLoading(false);
+      })
+      .catch(() => {
+        setLoading(false);
+      });
+  }, []);
+
+  if (loading) {
+    return <div className="text-red-500">Loading</div>;
+  }
+
+  if (showConfig) {
+    return <ConfigPage />;
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="container mx-auto p-4">
+        <h1 className="text-2xl font-bold mb-4">Login</h1>
+        <form onSubmit={(e) => {
+          e.preventDefault();
+          const username = e.target.username.value;
+          const password = e.target.password.value;
+          fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password }),
+            credentials: 'include',
+          })
+            .then(res => res.json())
+            .then(data => {
+              if (data.authenticated) {
+                setIsAuthenticated(true);
+                setUserRole(data.role);
+              } else {
+                alert('Login failed');
+              }
+            });
+        }} className="space-y-4">
+          <input type="text" name="username" placeholder="Username" className="border p-2 w-full" />
+          <input type="password" name="password" placeholder="Password" className="border p-2 w-full" />
+          <button type="submit" className="bg-blue-500 text-white p-2 w-full">Login</button>
+        </form>
+        <button onClick={() => setShowConfig(true)} className="mt-4 bg-gray-500 text-white p-2 w-full">Go to Config</button>
+      </div>
+    );
+  }
+
+  if (userRole === 'admin') {
+    return (
+      <div className="container mx-auto p-4">
+        <AdminDashboard />
+        <button onClick={() => setShowConfig(true)} className="mt-4 bg-gray-500 text-white p-2">Go to Config</button>
+      </div>
+    );
+  }
+
+  if (userRole === 'instructor') {
+    return (
+      <div className="container mx-auto p-4">
+        <h1>Instructor Dashboard</h1>
+        <button onClick={() => setShowConfig(true)} className="mt-4 bg-gray-500 text-white p-2">Go to Config</button>
+      </div>
+    );
+  }
+
+  return <div className="container mx-auto p-4">Unauthorized</div>;
+};
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+EOF
+
+# Rebuild React app with AdminDashboard
+echo "Rebuilding React app with AdminDashboard..."
+cd /music_scheduler
+if npm run build; then
+  echo "React app rebuilt successfully."
+else
+  echo "Error: Vite build failed for AdminDashboard. Check logs for details."
+  exit 1
+fi
+
+# Rebuild Tailwind CSS
+echo "Rebuilding Tailwind CSS..."
+npx update-browserslist-db@latest
+npx tailwindcss -i /music_scheduler/src/index.css -o /music_scheduler/static/tailwind.css --minify
+if [ -f /music_scheduler/static/tailwind.css ]; then
+    echo "tailwind.css successfully rebuilt."
+    ls -l /music_scheduler/static/tailwind.css
+else
+    echo "Error: Failed to rebuild tailwind.css."
+    exit 1
+fi
+
+# Update index.html with latest JS and CSS files
+echo "Updating index.html with latest JS and CSS files..."
+CSS_FILE=$(ls /music_scheduler/static/assets/index-*.css | grep -o 'index-.*\.css' | head -1)
+JS_FILE=$(ls /music_scheduler/static/assets/index-*.js | grep -o 'index-.*\.js' | head -1)
+echo "$CSS_FILE"
+echo "$JS_FILE"
+cat > /music_scheduler/static/index.html << EOF
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Music Scheduler</title>
+  <link rel="stylesheet" href="/static/tailwind.css">
+  <link rel="stylesheet" href="/static/assets/$CSS_FILE">
+  <link rel="icon" href="/static/favicon.ico">
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/static/assets/$JS_FILE"></script>
+</body>
+</html>
+EOF
+
+echo "Admin setup complete! Check the setup log for details: cat /music_scheduler/logs/setup_admin.log"

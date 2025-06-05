@@ -1,0 +1,108 @@
+#!/bin/bash
+
+echo "Starting setup_core.sh logging at $(date)"
+exec > >(tee -a /music_scheduler/logs/setup_core.log) 2>&1
+
+echo "Debug: Logging initialized for setup_core.sh"
+
+# Run database setup
+echo "Running setup_database.sh..."
+chmod +x setup_database.sh
+./setup_database.sh
+if [ $? -ne 0 ]; then
+    echo "Error: Database setup failed. Check logs: cat /music_scheduler/logs/setup_database.log"
+    exit 1
+fi
+
+# Run backend setup
+echo "Running setup_backend.sh..."
+chmod +x setup_backend.sh
+./setup_backend.sh
+if [ $? -ne 0 ]; then
+    echo "Error: Backend setup failed. Check logs: cat /music_scheduler/logs/setup_backend.log"
+    exit 1
+fi
+
+# Run frontend setup
+echo "Running setup_frontend.sh..."
+chmod +x setup_frontend.sh
+./setup_frontend.sh
+if [ $? -ne 0 ]; then
+    echo "Error: Frontend setup failed. Check logs: cat /music_scheduler/logs/setup_frontend.log"
+    exit 1
+fi
+
+# Set up database backup (placeholder)
+echo "Setting up database backup..."
+# Add your database backup logic here if needed
+
+# Run setup_config.sh
+echo "Setting permissions for setup_config.sh and running it..."
+chmod +x setup_config.sh
+./setup_config.sh
+if [ $? -ne 0 ]; then
+    echo "Error: Config setup failed. Check logs: cat /music_scheduler/logs/setup_config.log"
+    exit 1
+fi
+
+# Run setup_admin.sh
+echo "Setting permissions for setup_admin.sh and running it..."
+chmod +x setup_admin.sh
+./setup_admin.sh
+if [ $? -ne 0 ]; then
+    echo "Error: Admin setup failed. Check logs: cat /music_scheduler/logs/setup_admin.log"
+    exit 1
+fi
+
+# Run setup_instructor.sh
+echo "Setting permissions for setup_instructor.sh and running it..."
+chmod +x setup_instructor.sh
+./setup_instructor.sh
+if [ $? -ne 0 ]; then
+    echo "Error: Instructor setup failed. Check logs: cat /music_scheduler/logs/setup_instructor.log"
+    exit 1
+fi
+
+# Run services setup
+echo "Running setup_services.sh..."
+chmod +x setup_services.sh
+./setup_services.sh
+if [ $? -ne 0 ]; then
+    echo "Error: Services setup failed. Check logs: cat /music_scheduler/logs/setup_services.log"
+    exit 1
+fi
+
+# Fix permissions
+echo "Running fix_permissions.sh..."
+chmod +x fix_permissions.sh
+./fix_permissions.sh
+if [ $? -ne 0 ]; then
+    echo "Error: Permissions fix failed. Check logs: cat /music_scheduler/logs/fix_permissions.log"
+    exit 1
+fi
+
+# Verify installation
+echo "Verifying installation..."
+if systemctl is-active --quiet nginx; then
+    echo "Nginx is running."
+else
+    echo "Nginx is not running. Check logs: journalctl -u nginx"
+    exit 1
+fi
+
+if systemctl is-active --quiet music_scheduler; then
+    echo "Gunicorn is running."
+else
+    echo "Gunicorn is not running. Check logs: journalctl -u music_scheduler"
+    exit 1
+fi
+
+echo "Testing application endpoint..."
+if curl -s -o /dev/null -w "%{http_code}" http://192.168.1.63; then
+    echo "Application is accessible at http://192.168.1.63"
+else
+    echo "Failed to access the application at http://192.168.1.63. Check server logs."
+    exit 1
+fi
+
+echo "Core setup complete! Check the setup log for details: cat /music_scheduler/logs/setup_core.log"

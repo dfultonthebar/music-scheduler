@@ -1,0 +1,235 @@
+#!/bin/bash
+
+echo "Starting setup_frontend.sh logging at $(date)"
+exec > >(tee -a /music_scheduler/logs/setup_frontend.log) 2>&1
+
+echo "Debug: Logging initialized for setup_frontend.sh"
+
+# Fix ownership and permissions of node_modules
+echo "Fixing ownership and permissions of node_modules..."
+chown -R root:root /music_scheduler/node_modules 2>/dev/null || true
+chmod -R 755 /music_scheduler/node_modules 2>/dev/null || true
+
+# Remove existing node_modules, package-lock.json, and old build artifacts
+echo "Removing existing node_modules, package-lock.json, and old build artifacts..."
+rm -rf /music_scheduler/node_modules /music_scheduler/package-lock.json /music_scheduler/static /music_scheduler/index.html
+
+# Set up base React app structure
+echo "Setting up base React app structure..."
+mkdir -p /music_scheduler/src
+mkdir -p /music_scheduler/static
+
+# Create src/index.jsx
+echo "Creating src/index.jsx..."
+cat > /music_scheduler/src/index.jsx << 'EOF'
+import React, { useState, useEffect } from 'react';
+import ReactDOM from 'react-dom/client';
+import './index.css';
+
+const App = () => {
+  const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userRole, setUserRole] = useState(null);
+
+  useEffect(() => {
+    fetch('/api/check-auth', { credentials: 'include' })
+      .then(res => res.json())
+      .then(data => {
+        setIsAuthenticated(data.authenticated);
+        setUserRole(data.role);
+        setLoading(false);
+      })
+      .catch(() => {
+        setLoading(false);
+      });
+  }, []);
+
+  if (loading) {
+    return <div className="text-red-500">Loading</div>;
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="container mx-auto p-4">
+        <h1 className="text-2xl font-bold mb-4">Login</h1>
+        <form onSubmit={(e) => {
+          e.preventDefault();
+          const username = e.target.username.value;
+          const password = e.target.password.value;
+          fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password }),
+            credentials: 'include',
+          })
+            .then(res => res.json())
+            .then(data => {
+              if (data.authenticated) {
+                setIsAuthenticated(true);
+                setUserRole(data.role);
+              } else {
+                alert('Login failed');
+              }
+            });
+        }} className="space-y-4">
+          <input type="text" name="username" placeholder="Username" className="border p-2 w-full" />
+          <input type="password" name="password" placeholder="Password" className="border p-2 w-full" />
+          <button type="submit" className="bg-blue-500 text-white p-2 w-full">Login</button>
+        </form>
+      </div>
+    );
+  }
+
+  if (userRole === 'admin') {
+    return <div className="container mx-auto p-4">Admin Dashboard</div>;
+  }
+
+  if (userRole === 'instructor') {
+    return <div className="container mx-auto p-4">Instructor Dashboard</div>;
+  }
+
+  return <div className="container mx-auto p-4">Unauthorized</div>;
+};
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+EOF
+
+# Create src/index.css
+echo "Creating src/index.css..."
+cat > /music_scheduler/src/index.css << 'EOF'
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+}
+EOF
+
+# Create tailwind.config.js
+echo "Creating tailwind.config.js..."
+cat > /music_scheduler/tailwind.config.js << 'EOF'
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  content: ['./src/**/*.{js,jsx}', './index.html'],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+}
+EOF
+
+# Create vite.config.js
+echo "Creating vite.config.js..."
+cat > /music_scheduler/vite.config.js << 'EOF'
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+// https://vite.dev/config/
+export default defineConfig({
+  plugins: [react()],
+  build: {
+    outDir: 'static'
+  }
+})
+EOF
+
+# Create package.json
+echo "Creating package.json..."
+cat > /music_scheduler/package.json << 'EOF'
+{
+  "name": "music_scheduler",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "vite build"
+  },
+  "devDependencies": {
+    "vite": "^6.3.5",
+    "@vitejs/plugin-react": "^4.3.2",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "tailwindcss": "^3.4.14",
+    "postcss": "^8.4.47",
+    "autoprefixer": "^10.4.20"
+  }
+}
+EOF
+
+# Create index.html in the project root for Vite to use
+# This index.html will be processed by Vite and moved to the static/ directory with correct script references
+echo "Creating index.html for Vite..."
+cat > /music_scheduler/index.html << 'EOF'
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Music Scheduler</title>
+  <link rel="stylesheet" href="/static/tailwind.css">
+  <link rel="icon" href="/static/favicon.ico">
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/index.jsx"></script>
+</body>
+</html>
+EOF
+
+# Clear npm cache
+echo "Clearing npm cache..."
+npm cache clean --force
+
+# Install dependencies
+echo "Installing dependencies..."
+cd /music_scheduler
+npm install
+
+# Update Browserslist database to avoid warnings
+echo "Forcing update of caniuse-lite..."
+npx update-browserslist-db@latest
+
+# Build React app
+# Vite will generate the correct index.html in the static/ directory
+echo "Building React app (initial build with placeholders)..."
+if npm run build; then
+  echo "React app built successfully."
+else
+  echo "Error: Vite build failed. Check logs for details."
+  exit 1
+fi
+
+# Build Tailwind CSS
+echo "Building Tailwind CSS..."
+npx update-browserslist-db@latest
+npx tailwindcss -i /music_scheduler/src/index.css -o /music_scheduler/static/tailwind.css --minify
+if [ -f /music_scheduler/static/tailwind.css ]; then
+  echo "tailwind.css successfully created."
+  ls -l /music_scheduler/static/tailwind.css
+else
+  echo "Error: Failed to create tailwind.css."
+  exit 1
+fi
+
+# Download favicon.ico
+echo "Downloading favicon.ico..."
+curl -o /music_scheduler/static/favicon.ico https://www.google.com/favicon.ico
+
+# Verify favicon.ico presence
+echo "Verifying favicon.ico presence..."
+if [ -f /music_scheduler/static/favicon.ico ]; then
+  echo "favicon.ico successfully created."
+  ls -l /music_scheduler/static/favicon.ico
+else
+  echo "Error: favicon.ico not found."
+  exit 1
+fi
+
+# Remove the incorrect index.html from /music_scheduler/ to ensure Nginx uses the one in static/
+echo "Removing incorrect index.html from /music_scheduler/..."
+rm -f /music_scheduler/index.html
+
+echo "Frontend setup complete! Check the setup log for details: cat /music_scheduler/logs/setup_frontend.log"

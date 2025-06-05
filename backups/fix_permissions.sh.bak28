@@ -1,0 +1,19 @@
+#!/bin/bash
+
+echo "Starting fix_permissions.sh logging at $(date)"
+exec > >(tee -a /music_scheduler/logs/fix_permissions.log) 2>&1
+
+echo "Debug: Logging initialized for fix_permissions.sh"
+
+# Fix static directory permissions for Nginx
+echo "Fixing static directory permissions for Nginx..."
+chown -R root:www-data /music_scheduler/static
+chmod -R 775 /music_scheduler/static
+
+# Fix permissions for other files
+echo "Fixing permissions for other files..."
+chown root:www-data /music_scheduler/app.py /music_scheduler/run_app.sh /music_scheduler/config.json /music_scheduler/index.html
+chmod 664 /music_scheduler/app.py /music_scheduler/config.json /music_scheduler/index.html
+chmod 775 /music_scheduler/run_app.sh
+
+echo "Permissions fixed! Check the setup log for details: cat /music_scheduler/logs/fix_permissions.log"

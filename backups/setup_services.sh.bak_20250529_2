@@ -1,0 +1,109 @@
+#!/bin/bash
+
+echo "Starting setup_services.sh logging at $(date)"
+exec > >(tee -a /music_scheduler/logs/setup_services.log) 2>&1
+
+echo "Debug: Logging initialized for setup_services.sh"
+
+# Configure Nginx
+echo "Configuring Nginx..."
+cat > /etc/nginx/nginx.conf << 'EOF'
+user www-data;
+worker_processes auto;
+pid /run/nginx.pid;
+
+events {
+    worker_connections 768;
+}
+
+http {
+    sendfile on;
+    tcp_nopush on;
+    tcp_nodelay on;
+    keepalive_timeout 65;
+    types_hash_max_size 2048;
+
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+
+    access_log /var/log/nginx/access.log;
+    error_log /var/log/nginx/error.log;
+
+    gzip on;
+
+    server {
+        listen 80;
+        server_name musicu-server.local;
+
+        location / {
+            root /music_scheduler/static;
+            try_files $uri $uri/ /index.html;
+        }
+
+        location /static/ {
+            alias /music_scheduler/static/;
+        }
+
+        location /api/ {
+            proxy_pass http://127.0.0.1:8000;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+    }
+}
+EOF
+
+# Verify Nginx configuration
+echo "Verifying Nginx configuration..."
+nginx -t
+
+# Check Nginx status
+echo "Checking Nginx status..."
+systemctl status nginx | grep 'Active:'
+
+if systemctl --quiet is-active nginx; then
+    echo "Nginx service is running."
+else
+    echo "Starting Nginx service..."
+    systemctl start nginx
+fi
+
+# Set up Avahi for mDNS
+echo "Setting up Avahi for mDNS..."
+systemctl enable avahi-daemon
+systemctl start avahi-daemon
+
+# Open firewall for mDNS (UDP port 5353)
+echo "Opening firewall for mDNS (UDP port 5353)..."
+ufw allow 5353/udp
+
+# Configure Avahi
+echo "Avahi service configured. musicu-server.local should now be resolvable on the local network."
+
+# Check Avahi status
+echo "Checking Avahi status..."
+systemctl status avahi-daemon | grep 'Active:'
+
+if systemctl --quiet is-active avahi-daemon; then
+    echo "Avahi service is running."
+else
+    echo "Error: Avahi service failed to start."
+    exit 1
+fi
+
+# Wait for Avahi to register hostname
+echo "Waiting for Avahi to register hostname..."
+sleep 10
+
+# Test mDNS resolution
+echo "Testing mDNS resolution on the server..."
+if avahi-resolve -n musicu-server.local; then
+    echo "mDNS resolution successful for musicu-server.local."
+else
+    echo "Error: mDNS resolution failed."
+    exit 1
+fi
+
+echo "Services setup complete! Check the setup log for details: cat /music_scheduler/logs/setup_services.log"

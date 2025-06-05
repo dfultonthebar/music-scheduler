@@ -1,0 +1,624 @@
+#!/bin/bash
+
+echo "Starting setup_admin.sh logging at $(date)"
+exec > >(tee -a /music_scheduler/logs/setup_admin.log) 2>&1
+
+echo "Debug: Logging initialized for setup_admin.sh"
+
+cd /music_scheduler
+
+# Update index.jsx with AdminDashboard
+echo "Updating index.jsx with AdminDashboard..."
+cat << 'EOF' > index.jsx
+import React, { useState, useEffect } from 'react';
+import ReactDOM from 'react-dom/client';
+import Calendar from 'react-calendar';
+import './src/index.css';
+
+const API_BASE_URL = 'http://192.168.1.63';
+
+const ConfigPage = ({ token, setView }) => {
+  const [config, setConfig] = useState({
+    smtp_server: '',
+    smtp_port: '',
+    smtp_user: '',
+    smtp_password: '',
+    twilio_account_sid: '',
+    twilio_auth_token: '',
+    twilio_phone_number: ''
+  });
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/config`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await response.json();
+        setConfig(data);
+      } catch (error) {
+        console.error('Error fetching config:', error);
+        alert('Error fetching config: ' + error.message);
+      }
+    })();
+  }, [token]);
+
+  const handleChange = (e) => {
+    setConfig({ ...config, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/config`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(config)
+      });
+      const result = await response.json();
+      alert(result.message);
+      setView('dashboard');
+    } catch (error) {
+      console.error('Error updating config:', error);
+      alert('Error updating config: ' + error.message);
+    }
+  };
+
+  return (
+    <div className="p-6">
+      <h1 className="text-2xl mb-4">Configuration</h1>
+      <div className="mb-4">
+        <label className="block mb-1">SMTP Server</label>
+        <input type="text" name="smtp_server" value={config.smtp_server} onChange={handleChange} className="border p-2 w-full" />
+      </div>
+      <div className="mb-4">
+        <label className="block mb-1">SMTP Port</label>
+        <input type="number" name="smtp_port" value={config.smtp_port} onChange={handleChange} className="border p-2 w-full" />
+      </div>
+      <div className="mb-4">
+        <label className="block mb-1">SMTP User</label>
+        <input type="text" name="smtp_user" value={config.smtp_user} onChange={handleChange} className="border p-2 w-full" />
+      </div>
+      <div className="mb-4">
+        <label className="block mb-1">SMTP Password</label>
+        <input type="password" name="smtp_password" value={config.smtp_password} onChange={handleChange} className="border p-2 w-full" />
+      </div>
+      <div className="mb-4">
+        <label className="block mb-1">Twilio Account SID</label>
+        <input type="text" name="twilio_account_sid" value={config.twilio_account_sid} onChange={handleChange} className="border p-2 w-full" />
+      </div>
+      <div className="mb-4">
+        <label className="block mb-1">Twilio Auth Token</label>
+        <input type="password" name="twilio_auth_token" value={config.twilio_auth_token} onChange={handleChange} className="border p-2 w-full" />
+      </div>
+      <div className="mb-4">
+        <label className="block mb-1">Twilio Phone Number</label>
+        <input type="text" name="twilio_phone_number" value={config.twilio_phone_number} onChange={handleChange} className="border p-2 w-full" />
+      </div>
+      <button onClick={handleSubmit} className="bg-blue-500 text-white p-2 rounded mr-2">Save</button>
+      <button onClick={() => setView('dashboard')} className="bg-gray-500 text-white p-2 rounded">Back</button>
+    </div>
+  );
+};
+
+const AdminDashboard = ({ token, setView }) => {
+  const [users, setUsers] = useState([]);
+  const [students, setStudents] = useState([]);
+  const [instructors, setInstructors] = useState([]);
+  const [lessons, setLessons] = useState([]);
+  const [newUser, setNewUser] = useState({ username: '', password: '', name: '', cell_phone: '' });
+  const [newStudent, setNewStudent] = useState({ name: '', instrument: '', cell_phone: '', email: '' });
+  const [editingUser, setEditingUser] = useState(null);
+  const [editingStudent, setEditingStudent] = useState(null);
+  const [assignStudent, setAssignStudent] = useState({ student_id: '', instructor_id: '' });
+  const [lessonForm, setLessonForm] = useState({
+    student_id: '',
+    instructor_id: '',
+    instrument: '',
+    date_time: '',
+    duration: '',
+    notes: ''
+  });
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const usersResponse = await fetch(`${API_BASE_URL}/api/users`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const studentsResponse = await fetch(`${API_BASE_URL}/api/students`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const instructorsResponse = await fetch(`${API_BASE_URL}/api/instructors`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const lessonsResponse = await fetch(`${API_BASE_URL}/api/lessons`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        setUsers(await usersResponse.json());
+        setStudents(await studentsResponse.json());
+        setInstructors(await instructorsResponse.json());
+        setLessons(await lessonsResponse.json());
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        alert('Error fetching data: ' + error.message);
+      }
+    })();
+  }, [token]);
+
+  const handleAddUser = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(newUser)
+      });
+      const result = await response.json();
+      alert(result.message);
+      setUsers([...users, { ...newUser, role: 'instructor' }]);
+      setNewUser({ username: '', password: '', name: '', cell_phone: '' });
+    } catch (error) {
+      console.error('Error adding user:', error);
+      alert('Error adding user: ' + error.message);
+    }
+  };
+
+  const handleEditUser = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(editingUser)
+      });
+      const result = await response.json();
+      alert(result.message);
+      setUsers(users.map(user => user.id === editingUser.id ? editingUser : user));
+      setEditingUser(null);
+    } catch (error) {
+      console.error('Error updating user:', error);
+      alert('Error updating user: ' + error.message);
+    }
+  };
+
+  const handleDeleteUser = async (id) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ id })
+      });
+      const result = await response.json();
+      alert(result.message);
+      setUsers(users.filter(user => user.id !== id));
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      alert('Error deleting user: ' + error.message);
+    }
+  };
+
+  const handleAddStudent = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/students`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(newStudent)
+      });
+      const result = await response.json();
+      alert(result.message);
+      setStudents([...students, newStudent]);
+      setNewStudent({ name: '', instrument: '', cell_phone: '', email: '' });
+    } catch (error) {
+      console.error('Error adding student:', error);
+      alert('Error adding student: ' + error.message);
+    }
+  };
+
+  const handleEditStudent = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/students`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(editingStudent)
+      });
+      const result = await response.json();
+      alert(result.message);
+      setStudents(students.map(student => student.id === editingStudent.id ? editingStudent : student));
+      setEditingStudent(null);
+    } catch (error) {
+      console.error('Error updating student:', error);
+      alert('Error updating student: ' + error.message);
+    }
+  };
+
+  const handleDeleteStudent = async (id) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/students`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ id })
+      });
+      const result = await response.json();
+      alert(result.message);
+      setStudents(students.filter(student => student.id !== id));
+    } catch (error) {
+      console.error('Error deleting student:', error);
+      alert('Error deleting student: ' + error.message);
+    }
+  };
+
+  const handleAssignStudent = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/assign_student`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(assignStudent)
+      });
+      const result = await response.json();
+      alert(result.message);
+      setAssignStudent({ student_id: '', instructor_id: '' });
+    } catch (error) {
+      console.error('Error assigning student:', error);
+      alert('Error assigning student: ' + error.message);
+    }
+  };
+
+  const handleUnassignStudent = async (student_id, instructor_id) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/unassign_student`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ student_id, instructor_id })
+      });
+      const result = await response.json();
+      alert(result.message);
+    } catch (error) {
+      console.error('Error unassigning student:', error);
+      alert('Error unassigning student: ' + error.message);
+    }
+  };
+
+  const handleAddLesson = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/lessons`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(lessonForm)
+      });
+      const result = await response.json();
+      if (result.error) {
+        alert(result.error);
+      } else {
+        alert(result.message);
+        setLessons([...lessons, { ...lessonForm, student_name: students.find(s => s.id === lessonForm.student_id)?.name, instructor_name: instructors.find(i => i.id === lessonForm.instructor_id)?.name }]);
+        setLessonForm({ student_id: '', instructor_id: '', instrument: '', date_time: '', duration: '', notes: '' });
+      }
+    } catch (error) {
+      console.error('Error scheduling lesson:', error);
+      alert('Error scheduling lesson: ' + error.message);
+    }
+  };
+
+  const handleEditLesson = async (lesson) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/lessons`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ lesson })
+      });
+      const result = await response.json();
+      if (result.error) {
+        alert(result.error);
+      } else {
+        alert(result.message);
+        setLessons(lessons.map(l => l.id === lesson.id ? { ...lesson, student_name: students.find(s => s.id === lesson.student_id)?.name, instructor_name: instructors.find(i => i.id === lesson.instructor_id)?.name } : l));
+      }
+    } catch (error) {
+      console.error('Error updating lesson:', error);
+      alert('Error updating lesson: ' + error.message);
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('role');
+    window.location.reload();
+  };
+
+  return (
+    <div className="p-6">
+      <h1 className="text-2xl mb-4">Admin Dashboard</h1>
+      <button onClick={handleLogout} className="bg-red-500 text-white p-2 rounded mb-4">Log Out</button>
+      <button onClick={() => setView('config')} className="bg-blue-500 text-white p-2 rounded mb-4 ml-2">Configure Settings</button>
+
+      <h2 className="text-xl mb-2">Users</h2>
+      <table className="w-full mb-4 border-collapse border">
+        <thead>
+          <tr>
+            <th className="border p-2">Username</th>
+            <th className="border p-2">Role</th>
+            <th className="border p-2">Name</th>
+            <th className="border p-2">Cell Phone</th>
+            <th className="border p-2">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {users.map(user => (
+            <tr key={user.id}>
+              <td className="border p-2">{user.username}</td>
+              <td className="border p-2">{user.role}</td>
+              <td className="border p-2">{user.name}</td>
+              <td className="border p-2">{user.cell_phone}</td>
+              <td className="border p-2">
+                <button onClick={() => setEditingUser(user)} className="bg-yellow-500 text-white p-1 rounded mr-2">Edit</button>
+                <button onClick={() => handleDeleteUser(user.id)} className="bg-red-500 text-white p-1 rounded">Delete</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <h2 className="text-xl mb-2">Add User</h2>
+      <div className="mb-4">
+        <input type="text" placeholder="Username" value={newUser.username} onChange={(e) => setNewUser({ ...newUser, username: e.target.value })} className="border p-2 mr-2" />
+        <input type="password" placeholder="Password" value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} className="border p-2 mr-2" />
+        <input type="text" placeholder="Name" value={newUser.name} onChange={(e) => setNewUser({ ...newUser, name: e.target.value })} className="border p-2 mr-2" />
+        <input type="text" placeholder="Cell Phone" value={newUser.cell_phone} onChange={(e) => setNewUser({ ...newUser, cell_phone: e.target.value })} className="border p-2 mr-2" />
+        <button onClick={handleAddUser} className="bg-green-500 text-white p-2 rounded">Add User</button>
+      </div>
+
+      {editingUser && (
+        <div className="mb-4">
+          <h2 className="text-xl mb-2">Edit User</h2>
+          <input type="text" value={editingUser.username} onChange={(e) => setEditingUser({ ...editingUser, username: e.target.value })} className="border p-2 mr-2" />
+          <input type="text" value={editingUser.name} onChange={(e) => setEditingUser({ ...editingUser, name: e.target.value })} className="border p-2 mr-2" />
+          <input type="text" value={editingUser.cell_phone} onChange={(e) => setEditingUser({ ...editingUser, cell_phone: e.target.value })} className="border p-2 mr-2" />
+          <button onClick={handleEditUser} className="bg-green-500 text-white p-2 rounded mr-2">Save</button>
+          <button onClick={() => setEditingUser(null)} className="bg-gray-500 text-white p-2 rounded">Cancel</button>
+        </div>
+      )}
+
+      <h2 className="text-xl mb-2">Students</h2>
+      <table className="w-full mb-4 border-collapse border">
+        <thead>
+          <tr>
+            <th className="border p-2">Name</th>
+            <th className="border p-2">Instrument</th>
+            <th className="border p-2">Cell Phone</th>
+            <th className="border p-2">Email</th>
+            <th className="border p-2">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {students.map(student => (
+            <tr key={student.id}>
+              <td className="border p-2">{student.name}</td>
+              <td className="border p-2">{student.instrument}</td>
+              <td className="border p-2">{student.cell_phone}</td>
+              <td className="border p-2">{student.email}</td>
+              <td className="border p-2">
+                <button onClick={() => setEditingStudent(student)} className="bg-yellow-500 text-white p-1 rounded mr-2">Edit</button>
+                <button onClick={() => handleDeleteStudent(student.id)} className="bg-red-500 text-white p-1 rounded">Delete</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <h2 className="text-xl mb-2">Add Student</h2>
+      <div className="mb-4">
+        <input type="text" placeholder="Name" value={newStudent.name} onChange={(e) => setNewStudent({ ...newStudent, name: e.target.value })} className="border p-2 mr-2" />
+        <input type="text" placeholder="Instrument" value={newStudent.instrument} onChange={(e) => setNewStudent({ ...newStudent, instrument: e.target.value })} className="border p-2 mr-2" />
+        <input type="text" placeholder="Cell Phone" value={newStudent.cell_phone} onChange={(e) => setNewStudent({ ...newStudent, cell_phone: e.target.value })} className="border p-2 mr-2" />
+        <input type="email" placeholder="Email" value={newStudent.email} onChange={(e) => setNewStudent({ ...newStudent, email: e.target.value })} className="border p-2 mr-2" />
+        <button onClick={handleAddStudent} className="bg-green-500 text-white p-2 rounded">Add Student</button>
+      </div>
+
+      {editingStudent && (
+        <div className="mb-4">
+          <h2 className="text-xl mb-2">Edit Student</h2>
+          <input type="text" value={editingStudent.name} onChange={(e) => setEditingStudent({ ...editingStudent, name: e.target.value })} className="border p-2 mr-2" />
+          <input type="text" value={editingStudent.instrument} onChange={(e) => setEditingStudent({ ...editingStudent, instrument: e.target.value })} className="border p-2 mr-2" />
+          <input type="text" value={editingStudent.cell_phone} onChange={(e) => setEditingStudent({ ...editingStudent, cell_phone: e.target.value })} className="border p-2 mr-2" />
+          <input type="email" value={editingStudent.email} onChange={(e) => setEditingStudent({ ...editingStudent, email: e.target.value })} className="border p-2 mr-2" />
+          <button onClick={handleEditStudent} className="bg-green-500 text-white p-2 rounded mr-2">Save</button>
+          <button onClick={() => setEditingStudent(null)} className="bg-gray-500 text-white p-2 rounded">Cancel</button>
+        </div>
+      )}
+
+      <h2 className="text-xl mb-2">Assign Student to Instructor</h2>
+      <div className="mb-4">
+        <select value={assignStudent.student_id} onChange={(e) => setAssignStudent({ ...assignStudent, student_id: e.target.value })} className="border p-2 mr-2">
+          <option value="">Select Student</option>
+          {students.map(student => (
+            <option key={student.id} value={student.id}>{student.name}</option>
+          ))}
+        </select>
+        <select value={assignStudent.instructor_id} onChange={(e) => setAssignStudent({ ...assignStudent, instructor_id: e.target.value })} className="border p-2 mr-2">
+          <option value="">Select Instructor</option>
+          {instructors.map(instructor => (
+            <option key={instructor.id} value={instructor.id}>{instructor.name}</option>
+          ))}
+        </select>
+        <button onClick={handleAssignStudent} className="bg-green-500 text-white p-2 rounded mr-2">Assign</button>
+        <button onClick={() => handleUnassignStudent(assignStudent.student_id, assignStudent.instructor_id)} className="bg-red-500 text-white p-2 rounded">Unassign</button>
+      </div>
+
+      <h2 className="text-xl mb-2">Schedule Lesson</h2>
+      <div className="mb-4">
+        <select value={lessonForm.student_id} onChange={(e) => setLessonForm({ ...lessonForm, student_id: e.target.value })} className="border p-2 mr-2">
+          <option value="">Select Student</option>
+          {students.map(student => (
+            <option key={student.id} value={student.id}>{student.name}</option>
+          ))}
+        </select>
+        <select value={lessonForm.instructor_id} onChange={(e) => setLessonForm({ ...lessonForm, instructor_id: e.target.value })} className="border p-2 mr-2">
+          <option value="">Select Instructor</option>
+          {instructors.map(instructor => (
+            <option key={instructor.id} value={instructor.id}>{instructor.name}</option>
+          ))}
+        </select>
+        <input type="text" placeholder="Instrument" value={lessonForm.instrument} onChange={(e) => setLessonForm({ ...lessonForm, instrument: e.target.value })} className="border p-2 mr-2" />
+        <input type="datetime-local" value={lessonForm.date_time} onChange={(e) => setLessonForm({ ...lessonForm, date_time: e.target.value })} className="border p-2 mr-2" />
+        <input type="number" placeholder="Duration (hours)" value={lessonForm.duration} onChange={(e) => setLessonForm({ ...lessonForm, duration: e.target.value })} className="border p-2 mr-2" />
+        <input type="text" placeholder="Notes" value={lessonForm.notes} onChange={(e) => setLessonForm({ ...lessonForm, notes: e.target.value })} className="border p-2 mr-2" />
+        <button onClick={handleAddLesson} className="bg-green-500 text-white p-2 rounded">Schedule Lesson</button>
+      </div>
+
+      <h2 className="text-xl mb-2">Lessons</h2>
+      <table className="w-full mb-4 border-collapse border">
+        <thead>
+          <tr>
+            <th className="border p-2">Student</th>
+            <th className="border p-2">Instructor</th>
+            <th className="border p-2">Instrument</th>
+            <th className="border p-2">Date/Time</th>
+            <th className="border p-2">Duration</th>
+            <th className="border p-2">Notes</th>
+            <th className="border p-2">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {lessons.map(lesson => (
+            <tr key={lesson.id}>
+              <td className="border p-2">{lesson.student_name}</td>
+              <td className="border p-2">{lesson.instructor_name}</td>
+              <td className="border p-2">{lesson.instrument}</td>
+              <td className="border p-2">{lesson.date_time}</td>
+              <td className="border p-2">{lesson.duration}</td>
+              <td className="border p-2">{lesson.notes}</td>
+              <td className="border p-2">
+                <button onClick={() => {
+                  const updatedLesson = { ...lesson };
+                  updatedLesson.student_id = prompt('Student ID:', lesson.student_id) || lesson.student_id;
+                  updatedLesson.instructor_id = prompt('Instructor ID:', lesson.instructor_id) || lesson.instructor_id;
+                  updatedLesson.instrument = prompt('Instrument:', lesson.instrument) || lesson.instrument;
+                  updatedLesson.date_time = prompt('Date/Time (YYYY-MM-DDTHH:MM):', lesson.date_time) || lesson.date_time;
+                  updatedLesson.duration = prompt('Duration (hours):', lesson.duration) || lesson.duration;
+                  updatedLesson.notes = prompt('Notes:', lesson.notes) || lesson.notes;
+                  handleEditLesson(updatedLesson);
+                }} className="bg-yellow-500 text-white p-1 rounded">Edit</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+const App = () => {
+  const [view, setView] = useState('dashboard');
+  const token = localStorage.getItem('token');
+  const role = localStorage.getItem('role');
+
+  if (!token || role !== 'admin') {
+    const [username, setUsername] = useState('');
+    const [password, setPassword] = useState('');
+
+    const handleLogin = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        const data = await response.json();
+        if (data.token) {
+          localStorage.setItem('token', data.token);
+          localStorage.setItem('role', data.role);
+          window.location.reload();
+        } else {
+          alert(data.error);
+        }
+      } catch (error) {
+        console.error('Error during login:', error);
+        alert('Error during login: ' + error.message);
+      }
+    };
+
+    return (
+      <div className="p-6">
+        <h1 className="text-2xl mb-4">Login</h1>
+        <input type="text" placeholder="Username" value={username} onChange={(e) => setUsername(e.target.value)} className="border p-2 mb-2 w-full" />
+        <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} className="border p-2 mb-2 w-full" />
+        <button onClick={handleLogin} className="bg-blue-500 text-white p-2 rounded">Login</button>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {view === 'dashboard' && <AdminDashboard token={token} setView={setView} />}
+      {view === 'config' && <ConfigPage token={token} setView={setView} />}
+    </div>
+  );
+};
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+EOF
+
+# Rebuild React app with AdminDashboard
+echo "Rebuilding React app with AdminDashboard..."
+npm run build
+if [ $? -ne 0 ]; then
+    echo "Error: Vite build failed for AdminDashboard. Check logs for details."
+    exit 1
+fi
+
+# Rebuild Tailwind CSS
+echo "Rebuilding Tailwind CSS..."
+npx tailwindcss -i src/index.css -o static/tailwind.css --minify
+if [ $? -ne 0 ]; then
+    echo "Error: Tailwind CSS rebuild failed. Check logs for details."
+    exit 1
+fi
+echo "tailwind.css successfully rebuilt."
+ls -l static/tailwind.css
+
+# Update index.html with the latest JS and CSS files
+echo "Updating index.html with latest JS and CSS files..."
+LATEST_CSS=$(ls -t /music_scheduler/static/assets/index-*.css | head -n 1 | xargs basename 2>/dev/null || echo "")
+LATEST_JS=$(ls -t /music_scheduler/static/assets/index-*.js | head -n 1 | xargs basename 2>/dev/null || echo "")
+if [ -n "$LATEST_CSS" ] && [ -n "$LATEST_JS" ]; then
+    sed -i "s|<link rel=\"stylesheet\" href=\"/static/tailwind.css\">.*|<link rel=\"stylesheet\" href=\"/static/tailwind.css\">\n  <link rel=\"stylesheet\" href=\"/static/assets/$LATEST_CSS\">|" /music_scheduler/index.html
+    sed -i "s|<script type=\"module\" src=\"/static/assets/.*\.js\">|<script type=\"module\" src=\"/static/assets/$LATEST_JS\">|" /music_scheduler/index.html
+    echo "$LATEST_CSS"
+    echo "$LATEST_JS"
+else
+    echo "Warning: Could not find latest CSS or JS files to update index.html. Continuing..."
+fi
+
+echo "Admin setup complete! Check the setup log for details: cat /music_scheduler/logs/setup_admin.log"

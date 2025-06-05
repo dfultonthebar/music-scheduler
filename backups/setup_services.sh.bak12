@@ -1,0 +1,199 @@
+#!/bin/bash
+
+echo "Starting setup_services.sh logging at $(date)"
+exec > >(tee -a /music_scheduler/logs/setup_services.log) 2>&1
+
+echo "Debug: Logging initialized for setup_services.sh"
+
+# Configure Nginx
+echo "Configuring Nginx..."
+cat << 'EOF' > /etc/nginx/sites-available/music_scheduler
+server {
+    listen 80;
+    server_name musicu.local 192.168.1.63;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location = /index.html {
+        alias /music_scheduler/index.html;
+        expires -1;
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+    }
+
+    location /static/ {
+        alias /music_scheduler/static/;
+        expires 30d;
+        access_log off;
+    }
+}
+EOF
+
+ln -sf /etc/nginx/sites-available/music_scheduler /etc/nginx/sites-enabled/
+rm -f /etc/nginx/sites-enabled/default
+
+# Verify Nginx configuration
+echo "Verifying Nginx configuration..."
+if nginx -t; then
+    echo "Nginx configuration is valid."
+else
+    echo "Error: Nginx configuration test failed. Check /var/log/nginx/error.log"
+    exit 1
+fi
+
+# Check Nginx status
+echo "Checking Nginx status..."
+systemctl restart nginx
+if systemctl is-active --quiet nginx; then
+    echo "Nginx service is running."
+    systemctl status nginx
+else
+    echo "Nginx service failed to start. Check logs: journalctl -u nginx"
+    exit 1
+fi
+
+# Set up Avahi for mDNS
+echo "Setting up Avahi for mDNS..."
+cat << 'EOF' > /etc/avahi/services/music_scheduler.service
+<?xml version="1.0" standalone='no'?>
+<!DOCTYPE service-group SYSTEM "avahi-service.dtd">
+<service-group>
+    <name replace-wildcards="yes">Music Lesson Scheduler on %h</name>
+    <service>
+        <type>_http._tcp</type>
+        <port>80</port>
+        <host-name>musicu.local</host-name>
+    </service>
+</service-group>
+EOF
+
+systemctl restart avahi-daemon
+echo "Avahi service configured. musicu.local should now be resolvable on the local network."
+
+# Check Avahi status
+echo "Checking Avahi status..."
+if systemctl is-active --quiet avahi-daemon; then
+    echo "Avahi service is running."
+    systemctl status avahi-daemon
+else
+    echo "Avahi service failed to start. Check logs: journalctl -u avahi-daemon"
+    exit 1
+fi
+
+# Wait for Avahi to register the hostname
+echo "Waiting for Avahi to register hostname..."
+sleep 5
+
+# Test mDNS resolution using avahi-resolve
+echo "Testing mDNS resolution on the server..."
+if avahi-resolve -n musicu.local > /dev/null 2>&1; then
+    echo "mDNS resolution successful for musicu.local."
+else
+    echo "mDNS resolution failed for musicu.local. Check Avahi setup and network configuration."
+fi
+
+echo "Services setup complete! Check the setup log for details: cat /music_scheduler/logs/setup_services.log"#!/bin/bash
+
+echo "Starting setup_services.sh logging at $(date)"
+exec > >(tee -a /music_scheduler/logs/setup_services.log) 2>&1
+
+echo "Debug: Logging initialized for setup_services.sh"
+
+# Configure Nginx
+echo "Configuring Nginx..."
+cat << 'EOF' > /etc/nginx/sites-available/music_scheduler
+server {
+    listen 80;
+    server_name musicu.local 192.168.1.63;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location = /index.html {
+        alias /music_scheduler/index.html;
+        expires -1;
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+    }
+
+    location /static/ {
+        alias /music_scheduler/static/;
+        expires 30d;
+        access_log off;
+    }
+}
+EOF
+
+ln -sf /etc/nginx/sites-available/music_scheduler /etc/nginx/sites-enabled/
+rm -f /etc/nginx/sites-enabled/default
+
+# Verify Nginx configuration
+echo "Verifying Nginx configuration..."
+if nginx -t; then
+    echo "Nginx configuration is valid."
+else
+    echo "Error: Nginx configuration test failed. Check /var/log/nginx/error.log"
+    exit 1
+fi
+
+# Check Nginx status
+echo "Checking Nginx status..."
+systemctl restart nginx
+if systemctl is-active --quiet nginx; then
+    echo "Nginx service is running."
+    systemctl status nginx
+else
+    echo "Nginx service failed to start. Check logs: journalctl -u nginx"
+    exit 1
+fi
+
+# Set up Avahi for mDNS
+echo "Setting up Avahi for mDNS..."
+cat << 'EOF' > /etc/avahi/services/music_scheduler.service
+<?xml version="1.0" standalone='no'?>
+<!DOCTYPE service-group SYSTEM "avahi-service.dtd">
+<service-group>
+    <name replace-wildcards="yes">Music Lesson Scheduler on %h</name>
+    <service>
+        <type>_http._tcp</type>
+        <port>80</port>
+        <host-name>musicu.local</host-name>
+    </service>
+</service-group>
+EOF
+
+systemctl restart avahi-daemon
+echo "Avahi service configured. musicu.local should now be resolvable on the local network."
+
+# Check Avahi status
+echo "Checking Avahi status..."
+if systemctl is-active --quiet avahi-daemon; then
+    echo "Avahi service is running."
+    systemctl status avahi-daemon
+else
+    echo "Avahi service failed to start. Check logs: journalctl -u avahi-daemon"
+    exit 1
+fi
+
+# Wait for Avahi to register the hostname
+echo "Waiting for Avahi to register hostname..."
+sleep 5
+
+# Test mDNS resolution using avahi-resolve
+echo "Testing mDNS resolution on the server..."
+if avahi-resolve -n musicu.local > /dev/null 2>&1; then
+    echo "mDNS resolution successful for musicu.local."
+else
+    echo "mDNS resolution failed for musicu.local. Check Avahi setup and network configuration."
+fi
+
+echo "Services setup complete! Check the setup log for details: cat /music_scheduler/logs/setup_services.log"

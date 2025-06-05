@@ -1,0 +1,108 @@
+#!/bin/bash
+
+echo "Starting setup_backend.sh logging at $(date)"
+exec > >(tee -a /music_scheduler/logs/setup_backend.log) 2>&1
+
+echo "Debug: Logging initialized for setup_backend.sh"
+
+# Ensure we're in the correct directory
+cd /music_scheduler
+
+# Create config.json with placeholder email and SMS settings
+echo "Creating config.json with placeholder email and SMS settings..."
+cat << 'EOF' > config.json
+{
+  "email": {
+    "smtp_server": "smtp.example.com",
+    "smtp_port": 587,
+    "sender_email": "your_email@example.com",
+    "sender_password": "your_password"
+  },
+  "sms": {
+    "api_key": "your_sms_api_key",
+    "api_secret": "your_sms_api_secret"
+  }
+}
+EOF
+
+# Create app.py (assuming it's the same as previously provided)
+echo "Creating app.py..."
+/usr/bin/install -C -m 644 app.py app.py
+
+# Create run_app.sh
+echo "Creating run_app.sh..."
+cat << 'EOF' > run_app.sh
+#!/bin/bash
+source /music_scheduler/venv/bin/activate
+cd /music_scheduler
+exec gunicorn -w 4 -b 127.0.0.1:8000 app:app --timeout 120
+EOF
+chmod +x run_app.sh
+
+# Recreate virtual environment with Python 3.12
+echo "Recreating virtual environment with Python 3.12..."
+rm -rf venv
+python3.12 -m venv venv
+source venv/bin/activate
+
+# Install dependencies
+echo "Installing Python dependencies..."
+pip install --upgrade pip
+pip install flask mysql-connector-python gunicorn
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to install Python dependencies. Check logs for details."
+    exit 1
+fi
+
+# Test database connection
+echo "Testing database connection..."
+python3.12 -c "import mysql.connector; conn = mysql.connector.connect(host='localhost', user='musicu', password='MusicU2025', database='music_scheduler'); print('Connected successfully'); conn.close()"
+if [ $? -ne 0 ]; then
+    echo "Error: Database connection failed. Check MariaDB status and user permissions."
+    echo "Run the following to fix permissions:"
+    echo "mysql -u root -p"
+    echo "GRANT ALL PRIVILEGES ON music_scheduler.* TO 'musicu'@'localhost' IDENTIFIED BY 'MusicU2025';"
+    echo "FLUSH PRIVILEGES;"
+    echo "EXIT;"
+    exit 1
+fi
+
+# Set up systemd service for Gunicorn
+echo "Setting up systemd service for Gunicorn..."
+cat << 'EOF' > /etc/systemd/system/music_scheduler.service
+[Unit]
+Description=Music Lesson Scheduler Gunicorn App
+After=network.target
+
+[Service]
+User=root
+Group=www-data
+WorkingDirectory=/music_scheduler
+Environment="PATH=/music_scheduler/venv/bin"
+ExecStart=/music_scheduler/venv/bin/gunicorn -w 4 -b 127.0.0.1:8000 app:app --timeout 120
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Reload systemd and start Gunicorn
+systemctl daemon-reload
+systemctl enable music_scheduler
+systemctl restart music_scheduler
+
+# Check Gunicorn service status
+echo "Checking Gunicorn service status..."
+systemctl status music_scheduler | grep 'Active:'
+if systemctl status music_scheduler | grep -q "Active: active (running)"; then
+    echo "Gunicorn service is running."
+else
+    echo "Error: Gunicorn service failed to start. Check logs: journalctl -u music_scheduler"
+    exit 1
+fi
+
+# Set permissions
+echo "Setting permissions..."
+chown -R root:www-data /music_scheduler
+chmod -R 775 /music_scheduler
+
+echo "Backend setup complete! Check the setup log for details: cat /music_scheduler/logs/setup_backend.log"

@@ -1,0 +1,175 @@
+#!/bin/bash
+
+echo "Starting setup_frontend.sh logging at $(date)"
+exec > >(tee -a /music_scheduler/logs/setup_frontend.log) 2>&1
+
+echo "Debug: Logging initialized for setup_frontend.sh"
+
+# Ensure we're in the correct directory
+cd /music_scheduler
+
+# Set up base React app structure
+echo "Setting up base React app structure..."
+mkdir -p src
+
+cat << 'EOF' > /music_scheduler/vite.config.js
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+  plugins: [react()],
+  build: {
+    outDir: 'static',
+    emptyOutDir: true,
+  },
+  server: {
+    proxy: {
+      '/api': 'http://localhost:8000',
+    },
+  },
+})
+EOF
+
+cat << 'EOF' > /music_scheduler/package.json
+{
+  "name": "music_scheduler",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-calendar": "^5.1.0",
+    "jsonwebtoken": "^9.0.2"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.5.0",
+    "vite": "^6.3.5",
+    "tailwindcss": "^3.4.14",
+    "browserslist": "^4.24.5",
+    "caniuse-lite": "^1.0.30001718"
+  },
+  "browserslist": [
+    ">0.2%",
+    "not dead",
+    "not op_mini all"
+  ]
+}
+EOF
+
+# Create src/main.jsx (Vite entry point)
+echo "Creating src/main.jsx..."
+cat << 'EOF' > /music_scheduler/src/main.jsx
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import '../index.jsx';
+import './index.css';
+EOF
+
+# Create initial index.jsx with Tailwind classes
+cat << 'EOF' > /music_scheduler/index.jsx
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<div className="text-red-500 p-6 bg-gray-100">Loading...</div>);
+EOF
+
+# Create index.html with reference to /src/main.jsx
+cat << 'EOF' > /music_scheduler/index.html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Music Lesson Scheduler</title>
+  <link rel="stylesheet" href="/static/tailwind.css">
+  <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+</html>
+EOF
+
+# Create index.css for Tailwind CSS imports
+echo "Creating src/index.css..."
+cat << 'EOF' > /music_scheduler/src/index.css
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+EOF
+
+# Create tailwind.config.js
+echo "Creating tailwind.config.js..."
+cat << 'EOF' > /music_scheduler/tailwind.config.js
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  content: [
+    "./index.html",
+    "./index.jsx",
+    "./src/**/*.{jsx,js}",
+  ],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+}
+EOF
+
+# Install dependencies
+echo "Installing dependencies..."
+npm install
+if [ $? -ne 0 ]; then
+    echo "Error: npm install failed. Check logs for details."
+    exit 1
+fi
+
+# Update Browserslist database
+echo "Updating Browserslist database..."
+npx update-browserslist-db@latest
+
+# Build React app
+echo "Building React app (initial build with placeholders)..."
+npm run build
+if [ $? -ne 0 ]; then
+    echo "Error: Vite build failed. Check logs for details."
+    exit 1
+fi
+
+# Build Tailwind CSS
+echo "Building Tailwind CSS..."
+npx tailwindcss -i src/index.css -o static/tailwind.css --minify
+if [ $? -ne 0 ]; then
+    echo "Error: Tailwind CSS build failed. Check logs for details."
+    exit 1
+fi
+echo "tailwind.css successfully created."
+ls -l /music_scheduler/static/tailwind.css
+
+# Update index.html with the latest JS and CSS files
+echo "Updating index.html with latest JS and CSS files..."
+LATEST_CSS=$(ls -t /music_scheduler/static/assets/index-*.css | head -n 1 | xargs basename 2>/dev/null || echo "")
+LATEST_JS=$(ls -t /music_scheduler/static/assets/index-*.js | head -n 1 | xargs basename 2>/dev/null || echo "")
+if [ -n "$LATEST_CSS" ] && [ -n "$LATEST_JS" ]; then
+    sed -i "s|<link rel=\"stylesheet\" href=\"/static/tailwind.css\">|<link rel=\"stylesheet\" href=\"/static/tailwind.css\">\n  <link rel=\"stylesheet\" href=\"/static/assets/$LATEST_CSS\">|" /music_scheduler/index.html
+    sed -i "s|<script type=\"module\" src=\"/src/main.jsx\">|<script type=\"module\" src=\"/static/assets/$LATEST_JS\">|" /music_scheduler/index.html
+    echo "$LATEST_CSS"
+    echo "$LATEST_JS"
+else
+    echo "Error: Could not find latest CSS or JS files to update index.html"
+    exit 1
+fi
+
+# Create favicon.ico placeholder
+echo "Creating favicon.ico placeholder..."
+touch /music_scheduler/static/favicon.ico
+chown root:www-data /music_scheduler/static/favicon.ico
+chmod 664 /music_scheduler/static/favicon.ico
+
+echo "Frontend setup complete! Check the setup log for details: cat /music_scheduler/logs/setup_frontend.log"

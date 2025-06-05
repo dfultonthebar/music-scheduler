@@ -1,0 +1,281 @@
+#!/bin/bash
+
+echo "Starting setup_database.sh logging at $(date)"
+exec > >(tee -a /music_scheduler/logs/setup_database.log) 2>&1
+
+echo "Debug: Logging initialized for setup_database.sh"
+
+# Ensure no residual MariaDB processes are running
+echo "Killing any residual MariaDB processes..."
+pkill -9 mariadbd 2>/dev/null || true
+pkill -9 mysqld_safe 2>/dev/null || true
+sleep 2
+
+# Ensure MariaDB service is stopped
+echo "Stopping MariaDB service..."
+systemctl stop mariadb || {
+    echo "Error: Failed to stop MariaDB service"
+    journalctl -u mariadb -n 20 --no-pager
+    exit 1
+}
+
+# Reinitialize MariaDB data directory to ensure a clean state
+echo "Reinitializing MariaDB data directory..."
+mv /var/lib/mysql /var/lib/mysql.bak_$(date +%F_%H%M%S) 2>/dev/null || true
+mysql_install_db --user=mysql --datadir=/var/lib/mysql
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to reinitialize MariaDB data directory"
+    exit 1
+fi
+
+# Fix permissions on the data directory
+echo "Fixing permissions on MariaDB data directory..."
+chown -R mysql:mysql /var/lib/mysql
+chmod -R 750 /var/lib/mysql
+
+# Ensure socket directory exists
+echo "Ensuring MariaDB socket directory exists..."
+mkdir -p /run/mysqld
+chown mysql:mysql /run/mysqld
+chmod 755 /run/mysqld
+
+# Start MariaDB normally
+echo "Starting MariaDB normally..."
+systemctl start mariadb
+if ! systemctl is-active --quiet mariadb; then
+    echo "Error: MariaDB failed to start after reinitialization"
+    journalctl -u mariadb -n 20 --no-pager
+    exit 1
+fi
+
+# Wait for MariaDB to fully start
+echo "Waiting for MariaDB to fully start..."
+sleep 5
+
+# Verify initial root user access (should work without password initially)
+echo "Verifying initial root user access..."
+sudo mysql -uroot -e "SELECT 1;" 2>/dev/null
+if [ $? -ne 0 ]; then
+    echo "Error: Unable to access root user without password after reinitialization"
+    exit 1
+fi
+
+# Set the root password and authentication method
+echo "Setting MariaDB root password and authentication method..."
+sudo mysql -uroot -e "ALTER USER 'root'@'localhost' IDENTIFIED VIA mysql_native_password;" 2>/dev/null
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to set authentication plugin for root user"
+    exit 1
+fi
+sudo mysql -uroot -e "SET PASSWORD FOR 'root'@'localhost' = PASSWORD('MusicU2025');" 2>/dev/null
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to set root password"
+    exit 1
+fi
+
+# Restart MariaDB to apply changes
+echo "Restarting MariaDB to apply password changes..."
+systemctl restart mariadb
+if ! systemctl is-active --quiet mariadb; then
+    echo "Error: MariaDB failed to start after restart"
+    journalctl -u mariadb -n 20 --no-pager
+    exit 1
+fi
+
+# Wait for MariaDB to fully start
+echo "Waiting for MariaDB to fully start..."
+sleep 5
+
+# Verify root user access with password
+echo "Verifying root user access with password..."
+mysql -uroot -pMusicU2025 -e "SELECT 1;" 2>/dev/null
+if [ $? -ne 0 ]; then
+    echo "Error: Unable to access root user with new password"
+    exit 1
+fi
+
+# Flush privileges to ensure changes apply
+mysql -uroot -pMusicU2025 -e "FLUSH PRIVILEGES;" 2>/dev/null
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to flush privileges"
+    exit 1
+fi
+
+# Secure MariaDB installation non-interactively
+echo "Securing MariaDB installation..."
+mysql -uroot -pMusicU2025 -e "DELETE FROM mysql.user WHERE User='';" 2>/dev/null || {
+    echo "Error: Failed to delete anonymous users"
+    exit 1
+}
+mysql -uroot -pMusicU2025 -e "DROP DATABASE IF EXISTS test;" 2>/dev/null || {
+    echo "Error: Failed to drop test database"
+    exit 1
+}
+mysql -uroot -pMusicU2025 -e "DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%';" 2>/dev/null || {
+    echo "Error: Failed to delete test database privileges"
+    exit 1
+}
+mysql -uroot -pMusicU2025 -e "SET PASSWORD FOR 'root'@'localhost' = PASSWORD('MusicU2025');" 2>/dev/null || {
+    echo "Error: Failed to reset root password"
+    exit 1
+}
+mysql -uroot -pMusicU2025 -e "ALTER USER 'root'@'localhost' IDENTIFIED VIA mysql_native_password;" 2>/dev/null || {
+    echo "Error: Failed to set authentication plugin for root user"
+    exit 1
+}
+mysql -uroot -pMusicU2025 -e "FLUSH PRIVILEGES;" 2>/dev/null || {
+    echo "Error: Failed to flush privileges"
+    exit 1
+}
+
+# Drop and recreate database
+echo "Dropping and recreating database..."
+mysql -uroot -pMusicU2025 -e "DROP DATABASE IF EXISTS musicu_db;" 2>/dev/null || {
+    echo "Error: Failed to drop database"
+    exit 1
+}
+mysql -uroot -pMusicU2025 -e "CREATE DATABASE musicu_db;" 2>/dev/null || {
+    echo "Error: Failed to create database"
+    exit 1
+}
+
+# Create MySQL user
+echo "Creating MySQL user..."
+mysql -uroot -pMusicU2025 -e "CREATE USER IF NOT EXISTS 'musicu_user'@'localhost' IDENTIFIED BY 'MusicU2025';" 2>/dev/null || {
+    echo "Error: Failed to create MySQL user"
+    exit 1
+}
+mysql -uroot -pMusicU2025 -e "GRANT ALL PRIVILEGES ON musicu_db.* TO 'musicu_user'@'localhost';" 2>/dev/null || {
+    echo "Error: Failed to grant privileges"
+    exit 1
+}
+mysql -uroot -pMusicU2025 -e "FLUSH PRIVILEGES;" 2>/dev/null || {
+    echo "Error: Failed to flush privileges"
+    exit 1
+}
+
+# Create database tables
+echo "Creating database tables..."
+mysql -umusicu_user -pMusicU2025 musicu_db <<EOF
+CREATE TABLE users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(255) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    role ENUM('admin', 'instructor') NOT NULL
+);
+
+CREATE TABLE students (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255),
+    phone VARCHAR(255),
+    instrument VARCHAR(255),
+    created_by INT,
+    FOREIGN KEY (created_by) REFERENCES users(id)
+);
+
+CREATE TABLE lessons (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT,
+    instructor_id INT,
+    lesson_date DATE NOT NULL,
+    lesson_time TIME NOT NULL,
+    duration INT NOT NULL,
+    instrument VARCHAR(255) NOT NULL,
+    reminder_enabled BOOLEAN DEFAULT FALSE,
+    notes TEXT,
+    FOREIGN KEY (student_id) REFERENCES students(id),
+    FOREIGN KEY (instructor_id) REFERENCES users(id)
+);
+
+CREATE TABLE instructor_availability (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    instructor_id INT,
+    day_of_week ENUM('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday') NOT NULL,
+    start_time TIME NOT NULL,
+    end_time TIME NOT NULL,
+    FOREIGN KEY (instructor_id) REFERENCES users(id)
+);
+
+CREATE TABLE instructor_time_off (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    instructor_id INT,
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    FOREIGN KEY (instructor_id) REFERENCES users(id)
+);
+
+CREATE TABLE instructor_instruments (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    instructor_id INT,
+    instrument VARCHAR(255) NOT NULL,
+    FOREIGN KEY (instructor_id) REFERENCES users(id)
+);
+EOF
+
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to create database tables"
+    exit 1
+fi
+
+# Install bcrypt for password hashing
+echo "Installing bcrypt for password hashing..."
+pip3 install bcrypt
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to install bcrypt"
+    exit 1
+fi
+
+# Clear existing users to ensure fresh data
+echo "Clearing existing users..."
+mysql -umusicu_user -pMusicU2025 musicu_db -e "TRUNCATE TABLE users;" 2>/dev/null || {
+    echo "Error: Failed to clear users table"
+    exit 1
+}
+
+# Hash passwords for initial users
+echo "Hashing passwords for initial users..."
+SALT=$(python3 -c "import bcrypt; print(bcrypt.gensalt().decode('utf-8'))")
+if [ -z "$SALT" ]; then
+    echo "Error: Failed to generate bcrypt salt"
+    exit 1
+fi
+echo "Fixed salt used: $SALT"
+ADMIN_HASH=$(python3 -c "import bcrypt; print(bcrypt.hashpw(b'MusicU2025', b'$SALT').decode('utf-8'))")
+if [ -z "$ADMIN_HASH" ]; then
+    echo "Error: Failed to hash admin password"
+    exit 1
+fi
+echo "Hashed password for admin: $ADMIN_HASH"
+INSTRUCTOR_HASH=$(python3 -c "import bcrypt; print(bcrypt.hashpw(b'MusicU2025', b'$SALT').decode('utf-8'))")
+if [ -z "$INSTRUCTOR_HASH" ]; then
+    echo "Error: Failed to hash instructor password"
+    exit 1
+fi
+echo "Hashed password for instructor1: $INSTRUCTOR_HASH"
+
+# Insert initial users
+mysql -umusicu_user -pMusicU2025 musicu_db <<EOF
+INSERT INTO users (username, password, role) VALUES ('admin', '$ADMIN_HASH', 'admin');
+INSERT INTO users (username, password, role) VALUES ('instructor1', '$INSTRUCTOR_HASH', 'instructor');
+EOF
+
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to insert initial users"
+    exit 1
+fi
+
+# Verify initial data
+echo "Verifying initial data..."
+mysql -umusicu_user -pMusicU2025 musicu_db -e "SELECT username, role FROM users;"
+
+# Ensure MariaDB is running before exiting
+echo "Ensuring MariaDB is running..."
+systemctl start mariadb
+if ! systemctl is-active --quiet mariadb; then
+    echo "Error: MariaDB is not running after setup"
+    journalctl -u mariadb -n 20 --no-pager
+    exit 1
+fi
+
+echo "Database setup complete! Check the setup log for details: cat /music_scheduler/logs/setup_database.log"

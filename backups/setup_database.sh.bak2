@@ -1,0 +1,111 @@
+#!/bin/bash
+
+echo "Starting setup_database.sh logging at $(date)"
+exec > >(tee -a /music_scheduler/logs/setup_database.log) 2>&1
+
+echo "Debug: Logging initialized for setup_database.sh"
+
+# Check if MySQL is installed
+if ! command -v mysql &> /dev/null; then
+    echo "MySQL not found. Installing MySQL server..."
+    apt-get update
+    apt-get install -y mysql-server
+    systemctl start mysql
+    systemctl enable mysql
+fi
+
+# Secure MySQL installation (set root password, remove anonymous users, etc.)
+echo "Securing MySQL installation..."
+mysql_secure_installation <<EOF
+
+y
+MusicU2025
+MusicU2025
+y
+y
+y
+y
+EOF
+
+# Create database and user
+echo "Creating MySQL database and user..."
+mysql -u root -pMusicU2025 <<EOF
+CREATE DATABASE IF NOT EXISTS music_scheduler;
+CREATE USER IF NOT EXISTS 'musicu'@'localhost' IDENTIFIED BY 'MusicU2025';
+GRANT ALL PRIVILEGES ON music_scheduler.* TO 'musicu'@'localhost';
+FLUSH PRIVILEGES;
+EOF
+
+# Create tables
+echo "Creating database tables..."
+mysql -u musicu -pMusicU2025 music_scheduler <<EOF
+CREATE TABLE IF NOT EXISTS users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(255) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    role VARCHAR(50) NOT NULL,
+    name VARCHAR(255),
+    cell_phone VARCHAR(20)
+);
+
+CREATE TABLE IF NOT EXISTS students (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    instrument VARCHAR(255),
+    cell_phone VARCHAR(20),
+    email VARCHAR(255)
+);
+
+CREATE TABLE IF NOT EXISTS instructors (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    name VARCHAR(255),
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS student_instructor (
+    student_id INT,
+    instructor_id INT,
+    PRIMARY KEY (student_id, instructor_id),
+    FOREIGN KEY (student_id) REFERENCES students(id),
+    FOREIGN KEY (instructor_id) REFERENCES instructors(id)
+);
+
+CREATE TABLE IF NOT EXISTS instructor_availability (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    instructor_id INT NOT NULL,
+    day_of_week VARCHAR(10) NOT NULL,
+    start_time TIME NOT NULL,
+    end_time TIME NOT NULL,
+    FOREIGN KEY (instructor_id) REFERENCES instructors(id)
+);
+
+CREATE TABLE IF NOT EXISTS lessons (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    instructor_id INT NOT NULL,
+    instrument VARCHAR(255),
+    date_time DATETIME NOT NULL,
+    duration FLOAT NOT NULL,
+    notes TEXT,
+    FOREIGN KEY (student_id) REFERENCES students(id),
+    FOREIGN KEY (instructor_id) REFERENCES instructors(id)
+);
+
+-- Insert default admin user
+INSERT INTO users (username, password, role, name, cell_phone)
+VALUES ('admin', 'MusicU2025', 'admin', 'Admin User', '123-456-7890')
+ON DUPLICATE KEY UPDATE password='MusicU2025';
+
+-- Insert default instructor user
+INSERT INTO users (username, password, role, name, cell_phone)
+VALUES ('instructor1', 'MusicU2025', 'instructor', 'Instructor One', '987-654-3210')
+ON DUPLICATE KEY UPDATE password='MusicU2025';
+
+-- Insert instructor record
+INSERT INTO instructors (user_id, name)
+SELECT id, name FROM users WHERE username='instructor1'
+ON DUPLICATE KEY UPDATE name=(SELECT name FROM users WHERE username='instructor1');
+EOF
+
+echo "Database setup complete! Check the setup log for details: cat /music_scheduler/logs/setup_database.log"

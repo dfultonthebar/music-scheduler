@@ -1,0 +1,95 @@
+from flask import Flask, request, jsonify
+from flask_session import Session
+import mysql.connector
+import bcrypt
+import logging
+
+app = Flask(__name__)
+app.config["SECRET_KEY"] = "0ed91c780a668e057a2be9546a2fe035"
+app.config["SESSION_TYPE"] = "filesystem"
+app.config["SESSION_FILE_DIR"] = "/music_scheduler/sessions"
+app.config["SESSION_FILE_THRESHOLD"] = 500
+app.config["SESSION_FILE_MODE"] = 0o775
+Session(app)
+app.config["SECRET_KEY"] = "1d275c3a3ee013528114737e8b9eb975"
+app.config["SESSION_TYPE"] = "filesystem"
+app.config["SESSION_FILE_DIR"] = "/music_scheduler/sessions"
+app.config["SESSION_FILE_THRESHOLD"] = 500
+app.config["SESSION_FILE_MODE"] = 0o775
+
+# Set up logging
+logging.basicConfig(filename='/music_scheduler/logs/flask_app.log', level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
+
+# Database configuration
+db_config = {
+    'host': 'localhost',
+    'user': 'music_user',
+    'password': 'MusicU2025',
+    'database': 'music_scheduler'
+}
+
+@app.route('/api/check-auth', methods=['GET'])
+def check_auth():
+    logging.info("Checking authentication status")
+    return jsonify({"authenticated": False}), 200
+
+@app.route('/api/login', methods=['POST'])
+def login():
+    try:
+        data = request.get_json()
+        if not data:
+            logging.error("No JSON data provided in login request")
+            return jsonify({"error": "No data provided"}), 400
+        
+        username = data.get('username')
+        password = data.get('password')
+        
+        if not username or not password:
+            logging.error("Missing username or password in login request")
+            return jsonify({"error": "Missing username or password"}), 400
+        
+        logging.info(f"Login attempt for username: {username}")
+        
+        conn = None
+        cursor = None
+        try:
+            logging.debug("Attempting to connect to database")
+            conn = mysql.connector.connect(**db_config)
+            cursor = conn.cursor()
+            logging.debug("Database connection successful")
+            
+            cursor.execute("SELECT password, role FROM users WHERE username = %s", (username,))
+            result = cursor.fetchone()
+            
+            if result:
+                stored_password = result[0].encode('utf-8')
+                user_role = result[1]
+                logging.debug(f"User {username} found with role {user_role}")
+                
+                if bcrypt.checkpw(password.encode('utf-8'), stored_password):
+                    logging.info(f"Login successful for {username} with role {user_role}")
+                    return jsonify({"message": "Login successful", "role": user_role}), 200
+                else:
+                    logging.warning(f"Invalid password for {username}")
+                    return jsonify({"error": "Invalid credentials"}), 401
+            else:
+                logging.warning(f"User {username} not found")
+                return jsonify({"error": "User not found"}), 404
+        except mysql.connector.Error as err:
+            logging.error(f"Database error during login for {username}: {err}")
+            return jsonify({"error": f"Database error: {str(err)}"}), 500
+        except Exception as e:
+            logging.error(f"Unexpected error during login for {username}: {e}")
+            return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
+        finally:
+            if 'cursor' in locals() and cursor:
+                cursor.close()
+            if 'conn' in locals() and conn:
+                conn.close()
+                logging.debug("Database connection closed")
+    except Exception as e:
+        logging.error(f"Fatal error in login route: {e}")
+        return jsonify({"error": "Server error"}), 500
+
+if __name__ == '__main__':
+    app.run(debug=True)

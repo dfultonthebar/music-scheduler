@@ -1,0 +1,68 @@
+#!/bin/bash
+
+echo "Starting setup_database.sh logging at $(date)"
+exec > >(tee -a /music_scheduler/logs/setup_database.log) 2>&1
+
+echo "Debug: Logging initialized for setup_database.sh"
+
+# Set MySQL root password and secure installation
+echo "Setting MySQL root password and securing installation..."
+mysql -u root -pMusicU2025 << 'EOF'
+ALTER USER 'root'@'localhost' IDENTIFIED BY 'MusicU2025';
+EOF
+
+# Drop and recreate database
+echo "Dropping and recreating database..."
+mysql -u root -pMusicU2025 << 'EOF'
+DROP DATABASE IF EXISTS musicu_db;
+CREATE DATABASE musicu_db;
+EOF
+
+# Create MySQL user
+echo "Creating MySQL user..."
+mysql -u root -pMusicU2025 << 'EOF'
+CREATE USER IF NOT EXISTS 'musicu_user'@'localhost' IDENTIFIED BY 'MusicU2025';
+GRANT ALL PRIVILEGES ON musicu_db.* TO 'musicu_user'@'localhost';
+FLUSH PRIVILEGES;
+EOF
+
+# Create database tables
+echo "Creating database tables..."
+mysql -u root -pMusicU2025 musicu_db << 'EOF'
+CREATE TABLE IF NOT EXISTS users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    role ENUM('admin', 'instructor') NOT NULL
+);
+CREATE TABLE IF NOT EXISTS lessons (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_name VARCHAR(100) NOT NULL,
+    instructor_id INT NOT NULL,
+    lesson_date DATE NOT NULL,
+    lesson_time TIME NOT NULL,
+    FOREIGN KEY (instructor_id) REFERENCES users(id)
+);
+-- Insert initial data with placeholder passwords (will be updated with hashed passwords)
+INSERT INTO users (username, password, role) VALUES ('admin', 'placeholder', 'admin') ON DUPLICATE KEY UPDATE password='placeholder', role='admin';
+INSERT INTO users (username, password, role) VALUES ('instructor1', 'placeholder', 'instructor') ON DUPLICATE KEY UPDATE password='placeholder', role='instructor';
+EOF
+
+# Hash the password for 'admin' and 'instructor1' (both using 'MusicU2025') within the virtual environment
+echo "Hashing passwords for initial users..."
+source /music_scheduler/venv/bin/activate
+ADMIN_HASH=$(python3 -c "import bcrypt; print(bcrypt.hashpw('MusicU2025'.encode('utf-8'), bcrypt.gensalt()).decode('utf-8'))")
+INSTRUCTOR_HASH=$(python3 -c "import bcrypt; print(bcrypt.hashpw('MusicU2025'.encode('utf-8'), bcrypt.gensalt()).decode('utf-8'))")
+deactivate
+
+# Update the users table with the correct hashed passwords
+mysql -u root -pMusicU2025 musicu_db << EOF
+UPDATE users SET password='$ADMIN_HASH' WHERE username='admin';
+UPDATE users SET password='$INSTRUCTOR_HASH' WHERE username='instructor1';
+EOF
+
+# Verify initial data
+echo "Verifying initial data..."
+mysql -u root -pMusicU2025 musicu_db -e "SELECT username, role FROM users;"
+
+echo "Database setup complete! Check the setup log for details: cat /music_scheduler/logs/setup_database.log"

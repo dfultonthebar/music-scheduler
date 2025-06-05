@@ -1,0 +1,23 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.env
+
+# Sessions
+sessions/
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+*.bak
+*.swp
+*.tmp
+
+# Virtual environment
+/music_scheduler/venv/

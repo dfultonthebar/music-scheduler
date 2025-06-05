@@ -1,0 +1,72 @@
+import logging
+from flask import Flask, request, jsonify, session
+import mysql.connector
+import jwt
+import bcrypt
+
+# Configure logging
+logging.basicConfig(
+    filename='/music_scheduler/logs/flask_app.log',
+    level=logging.INFO,
+    format='%(asctime)s %(levelname)s: %(message)s'
+)
+
+app = Flask(__name__)
+app.secret_key = 'MusicU2025Secret'
+
+# Database configuration
+db_config = {
+    'user': 'musicu',
+    'password': 'MusicU2025',
+    'host': 'localhost',
+    'database': 'music_scheduler'
+}
+
+@app.route('/api/check-auth', methods=['GET'])
+def check_auth():
+    if 'user_id' in session:
+        try:
+            conn = mysql.connector.connect(**db_config)
+            cursor = conn.cursor()
+            cursor.execute("SELECT role FROM users WHERE id = %s", (session['user_id'],))
+            user = cursor.fetchone()
+            cursor.close()
+            conn.close()
+            if user:
+                return jsonify({'authenticated': True, 'role': user[0]})
+        except mysql.connector.Error as e:
+            logging.error(f"Database error: {e}")
+    return jsonify({'authenticated': False, 'role': None})
+
+@app.route('/api/login', methods=['POST'])
+def login():
+    data = request.get_json()
+    username = data.get('username')
+    password = data.get('password')
+
+    try:
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, password, role FROM users WHERE username = %s", (username,))
+        user = cursor.fetchone()
+        cursor.close()
+        conn.close()
+
+        if user and bcrypt.checkpw(password.encode('utf-8'), user[1].encode('utf-8')):
+            session['user_id'] = user[0]
+            logging.info(f"User {username} logged in successfully")
+            return jsonify({'authenticated': True, 'role': user[2]})
+        else:
+            logging.warning(f"Failed login attempt for username: {username}")
+            return jsonify({'authenticated': False, 'message': 'Invalid credentials'}), 401
+    except mysql.connector.Error as e:
+        logging.error(f"Database error during login: {e}")
+        return jsonify({'authenticated': False, 'message': 'Server error'}), 500
+
+@app.route('/api/logout', methods=['POST'])
+def logout():
+    session.pop('user_id', None)
+    return jsonify({'message': 'Logged out'})
+
+if __name__ == '__main__':
+    app.run(debug=True)
