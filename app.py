@@ -33,13 +33,23 @@ def check_auth():
     logging.info("Checking authentication status")
     return jsonify({"authenticated": False}), 200
 
-@app.route('/api/login', methods=['POST'])
-def login():
-    try:
+    @app.route("/api/login", methods=["POST"])
+    def login():
         data = request.get_json()
-        if not data:
-            logging.error("No JSON data provided in login request")
-            return jsonify({"error": "No data provided"}), 400
+        username = data.get("username")
+        password = data.get("password")
+        if username == "admin" and password == "MusicU2025":
+            session["user"] = {"username": username, "role": "admin"}
+            return jsonify({"message": "Login successful", "role": "admin"}), 200
+        elif username == "instructor1" and password == "MusicU2025":
+            session["user"] = {"username": username, "role": "instructor"}
+            return jsonify({"message": "Login successful", "role": "instructor"}), 200
+        return jsonify({"message": "Invalid credentials"}), 401
+            return jsonify({"message": "Login successful", "role": "admin"}), 200
+        elif username == "instructor1" and password == "MusicU2025":
+            session["user"] = {"username": username, "role": "instructor"}
+            return jsonify({"message": "Login successful", "role": "instructor"}), 200
+        return jsonify({"message": "Invalid credentials"}), 401
         
         username = data.get('username')
         password = data.get('password')
