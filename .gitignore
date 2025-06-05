@@ -16,7 +16,6 @@ build/
 sessions/
 
 # Logs
-logs/
 *.log
 
 # Temporary files
@@ -30,3 +29,5 @@ logs/
 # OS-specific
 .DS_Store
 Thumbs.db
+!backup_*
+!logs/

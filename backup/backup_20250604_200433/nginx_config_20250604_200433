@@ -1,0 +1,30 @@
+server {
+    listen 80 default_server;
+    server_name musicu-server.local 192.168.1.63;
+
+    root /music_scheduler/static;
+    index index.html;
+
+    location = /favicon.ico {
+        try_files /favicon.ico =404;
+    }
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    allow 192.168.1.0/24;
+    allow 127.0.0.1;
+    deny all;
+
+    access_log /var/log/nginx/access.log;
+    error_log /var/log/nginx/error.log warn;
+}
