@@ -426,7 +426,7 @@ const AdminDashboard = ({ handleLogout, error, setError }) => {
           >
             <option value="">Select Instrument</option>
             {instructorInstruments.map(item => (
-              <option key={item.id} value={item.instrument}>{item.instrument}</option>
+              <option key={item.instrument} value={item.instrument}>{item.instrument}</option>
             ))}
           </select>
         </div>
@@ -822,7 +822,7 @@ const InstructorDashboard = ({ handleLogout, error, setError }) => {
       </form>
       <ul>
         {instruments.map(item => (
-          <li key={item.id} className="border-b py-2">{item.instrument}</li>
+          <li key={item.instrument} className="border-b py-2">{item.instrument}</li>
         ))}
       </ul>
     </div>
