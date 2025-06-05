@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
+import Calendar from 'react-calendar';
 
 const AdminDashboard = ({ handleLogout, error, setError }) => {
   const [users, setUsers] = useState([]);
@@ -41,7 +42,7 @@ const AdminDashboard = ({ handleLogout, error, setError }) => {
 
   const fetchUsers = async () => {
     try {
-      const res = await fetch('/api/users');
+      const res = await fetch('/api/users', { credentials: 'include' });
       const data = await res.json();
       setUsers(data.users || []);
     } catch (err) {
@@ -52,7 +53,7 @@ const AdminDashboard = ({ handleLogout, error, setError }) => {
 
   const fetchStudents = async () => {
     try {
-      const res = await fetch('/api/students');
+      const res = await fetch('/api/students', { credentials: 'include' });
       const data = await res.json();
       setStudents(data.students || []);
     } catch (err) {
@@ -64,7 +65,7 @@ const AdminDashboard = ({ handleLogout, error, setError }) => {
   const fetchLessons = async () => {
     try {
       setLoadingLessons(true);
-      const res = await fetch('/api/lessons');
+      const res = await fetch('/api/lessons', { credentials: 'include' });
       const data = await res.json();
       if (data.error) {
         throw new Error(data.error);
@@ -94,7 +95,7 @@ const AdminDashboard = ({ handleLogout, error, setError }) => {
 
   const fetchAvailability = async (instructorId) => {
     try {
-      const res = await fetch(`/api/availability?instructor_id=${instructorId}`);
+      const res = await fetch(`/api/availability?instructor_id=${instructorId}`, { credentials: 'include' });
       const data = await res.json();
       if (data.error) {
         throw new Error(data.error);
@@ -109,7 +110,7 @@ const AdminDashboard = ({ handleLogout, error, setError }) => {
 
   const fetchTimeOff = async (instructorId) => {
     try {
-      const res = await fetch(`/api/time-off?instructor_id=${instructorId}`);
+      const res = await fetch(`/api/time-off?instructor_id=${instructorId}`, { credentials: 'include' });
       const data = await res.json();
       if (data.error) {
         throw new Error(data.error);
@@ -124,7 +125,7 @@ const AdminDashboard = ({ handleLogout, error, setError }) => {
 
   const fetchInstructorInstruments = async (instructorId) => {
     try {
-      const res = await fetch(`/api/instruments?instructor_id=${instructorId}`);
+      const res = await fetch(`/api/instruments?instructor_id=${instructorId}`, { credentials: 'include' });
       const data = await res.json();
       if (data.error) {
         throw new Error(data.error);
@@ -144,7 +145,6 @@ const AdminDashboard = ({ handleLogout, error, setError }) => {
       return false;
     }
 
-    // Check if the lesson date and time are in the future
     const lessonDateTime = new Date(`${newLesson.lesson_date}T${newLesson.lesson_time}`);
     const currentTime = new Date();
     if (lessonDateTime <= currentTime) {
@@ -156,7 +156,6 @@ const AdminDashboard = ({ handleLogout, error, setError }) => {
     const lessonDay = lessonDateTime.toLocaleString('en-US', { weekday: 'long' });
     const lessonTime = lessonDateTime.toTimeString().split(' ')[0].substring(0, 5);
 
-    // Check if the instructor is on time off
     const isOnTimeOff = timeOff.some(slot => {
       const startDate = new Date(slot.start_date);
       const endDate = new Date(slot.end_date);
@@ -168,7 +167,6 @@ const AdminDashboard = ({ handleLogout, error, setError }) => {
       return false;
     }
 
-    // Check if the instructor is available on this day and time
     const isAvailable = availability.some(slot => {
       if (slot.day_of_week !== lessonDay) return false;
       const slotStart = slot.start_time.substring(0, 5);
@@ -191,6 +189,7 @@ const AdminDashboard = ({ handleLogout, error, setError }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newUser),
+        credentials: 'include'
       });
       const data = await res.json();
       if (data.message) {
@@ -213,6 +212,7 @@ const AdminDashboard = ({ handleLogout, error, setError }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newStudent),
+        credentials: 'include'
       });
       const data = await res.json();
       if (data.message) {
@@ -248,6 +248,7 @@ const AdminDashboard = ({ handleLogout, error, setError }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(lessonData),
+        credentials: 'include'
       });
       const data = await res.json();
       console.log('Lesson creation response:', data);
@@ -515,7 +516,7 @@ const InstructorDashboard = ({ handleLogout, error, setError }) => {
   const fetchLessons = async () => {
     try {
       setLoadingLessons(true);
-      const res = await fetch('/api/my-lessons');
+      const res = await fetch('/api/my-lessons', { credentials: 'include' });
       const data = await res.json();
       if (data.error) {
         throw new Error(data.error);
@@ -533,7 +534,6 @@ const InstructorDashboard = ({ handleLogout, error, setError }) => {
         return isValid;
       });
       setLessons(validLessons);
-      // Initialize notes state
       const notesObj = {};
       validLessons.forEach(lesson => {
         notesObj[lesson.id] = lesson.notes || '';
@@ -550,7 +550,7 @@ const InstructorDashboard = ({ handleLogout, error, setError }) => {
 
   const fetchAvailability = async () => {
     try {
-      const res = await fetch('/api/availability');
+      const res = await fetch('/api/availability', { credentials: 'include' });
       const data = await res.json();
       setAvailability(data.availability || []);
     } catch (err) {
@@ -561,7 +561,7 @@ const InstructorDashboard = ({ handleLogout, error, setError }) => {
 
   const fetchTimeOff = async () => {
     try {
-      const res = await fetch('/api/time-off');
+      const res = await fetch('/api/time-off', { credentials: 'include' });
       const data = await res.json();
       setTimeOff(data.time_off || []);
     } catch (err) {
@@ -572,7 +572,7 @@ const InstructorDashboard = ({ handleLogout, error, setError }) => {
 
   const fetchInstruments = async () => {
     try {
-      const res = await fetch('/api/instruments');
+      const res = await fetch('/api/instruments', { credentials: 'include' });
       const data = await res.json();
       setInstruments(data.instruments || []);
     } catch (err) {
@@ -588,6 +588,7 @@ const InstructorDashboard = ({ handleLogout, error, setError }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newAvailability),
+        credentials: 'include'
       });
       const data = await res.json();
       if (data.message) {
@@ -610,6 +611,7 @@ const InstructorDashboard = ({ handleLogout, error, setError }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newTimeOff),
+        credentials: 'include'
       });
       const data = await res.json();
       if (data.message) {
@@ -632,6 +634,7 @@ const InstructorDashboard = ({ handleLogout, error, setError }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ instrument: newInstrument }),
+        credentials: 'include'
       });
       const data = await res.json();
       if (data.message) {
@@ -670,6 +673,7 @@ const InstructorDashboard = ({ handleLogout, error, setError }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ lesson_id: lessonId, notes: lessonNotes[lessonId] }),
+        credentials: 'include'
       });
       const data = await res.json();
       if (data.message) {
@@ -833,7 +837,7 @@ const App = () => {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    fetch('/api/check-auth')
+    fetch('/api/check-auth', { credentials: 'include' })
       .then(res => res.json())
       .then(data => {
         setIsAuthenticated(data.authenticated);
@@ -849,23 +853,29 @@ const App = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
+        credentials: 'include'
       });
       const data = await res.json();
-      if (data.authenticated) {
+      if (data.message === 'Login successful') {
         setIsAuthenticated(true);
         setRole(data.role);
         setError('');
+        window.location.href = data.role === 'admin' ? '/admin' : '/instructor';
       } else {
-        setError('Invalid credentials');
+        setError(data.message || 'Invalid credentials');
       }
     } catch (err) {
-      setError('Failed to login');
+      setError('Error during login: ' + err.message);
+      console.error('Login error:', err);
     }
   };
 
   const handleLogout = async () => {
     try {
-      await fetch('/api/logout', { method: 'POST' });
+      await fetch('/api/logout', {
+        method: 'POST',
+        credentials: 'include'
+      });
       setIsAuthenticated(false);
       setRole(null);
     } catch (err) {
