@@ -347,7 +347,7 @@ const AdminDashboard = ({ handleLogout, error, setError }) => {
           <input
             type="text"
             value={newStudent.name}
-            onChange={(e) => setNewStudent({ ...newUser, name: e.target.value })}
+            onChange={(e) => setNewStudent({ ...newStudent, name: e.target.value })}
             className="border p-2 w-full"
           />
         </div>
@@ -356,7 +356,7 @@ const AdminDashboard = ({ handleLogout, error, setError }) => {
           <input
             type="email"
             value={newStudent.email}
-            onChange={(e) => setNewStudent({ ...newUser, email: e.target.value })}
+            onChange={(e) => setNewStudent({ ...newStudent, email: e.target.value })}
             className="border p-2 w-full"
           />
         </div>
@@ -365,7 +365,7 @@ const AdminDashboard = ({ handleLogout, error, setError }) => {
           <input
             type="text"
             value={newStudent.phone}
-            onChange={(e) => setNewStudent({ ...newUser, phone: e.target.value })}
+            onChange={(e) => setNewStudent({ ...newStudent, phone: e.target.value })}
             className="border p-2 w-full"
           />
         </div>
@@ -374,7 +374,7 @@ const AdminDashboard = ({ handleLogout, error, setError }) => {
           <input
             type="text"
             value={newStudent.instrument}
-            onChange={(e) => setNewStudent({ ...newUser, instrument: e.target.value })}
+            onChange={(e) => setNewStudent({ ...newStudent, instrument: e.target.value })}
             className="border p-2 w-full"
           />
         </div>

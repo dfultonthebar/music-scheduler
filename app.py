@@ -6,11 +6,11 @@ from mysql.connector import Error
 from datetime import datetime
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = '86f9e9988842c41bb996a5a3b45cb236'
+app.config['SECRET_KEY'] = 'd0f33f212484b6776da8332afe37bee7'
 app.config['SESSION_TYPE'] = 'filesystem'
 app.config['SESSION_FILE_DIR'] = '/music_scheduler/sessions'
 app.config['SESSION_FILE_THRESHOLD'] = 500
-app.config['SESSION_FILE_MODE'] = 0o775
+app.config['SESSION_FILE_MODE'] = 0o660
 Session(app)
 bcrypt = Bcrypt(app)
 
@@ -306,4 +306,4 @@ def update_lesson_notes():
         connection.close()
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0', port=8000)
