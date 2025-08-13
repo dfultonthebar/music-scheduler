@@ -1,0 +1,51 @@
+{
+  "timestamp": "2025-08-13T04:58:20.440459",
+  "commit_type": "immediate",
+  "files": [
+    "repository_logs/2025-08-13/20250813_email_service.log",
+    "repository_logs/2025-08-13/20250813_app.log",
+    "repository_logs/2025-08-13/20250813_system.log",
+    "repository_logs/2025-08-13/20250813_errors.log",
+    "repository_logs/2025-08-13/20250813_password_changes.log",
+    "repository_logs/2025-08-13/20250813_user_activity.log",
+    "repository_logs/2025-08-13/20250813_debug.log"
+  ],
+  "stats": {
+    "total_logs": 7,
+    "current_logs": 7,
+    "archived_logs": 0,
+    "total_size": 1597,
+    "oldest_log": "2025-08-13 02:55:57.775000",
+    "newest_log": "2025-08-13 04:51:50.025000",
+    "by_type": {
+      "app": {
+        "count": 1,
+        "size": 568
+      },
+      "system": {
+        "count": 1,
+        "size": 317
+      },
+      "user_activity": {
+        "count": 1,
+        "size": 108
+      },
+      "errors": {
+        "count": 1,
+        "size": 0
+      },
+      "debug": {
+        "count": 1,
+        "size": 0
+      },
+      "password_changes": {
+        "count": 1,
+        "size": 153
+      },
+      "email_service": {
+        "count": 1,
+        "size": 451
+      }
+    }
+  }
+}

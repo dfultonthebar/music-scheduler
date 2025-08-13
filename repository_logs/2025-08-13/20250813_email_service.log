@@ -1,0 +1,5 @@
+2025-08-13 02:53:02,045 - EmailService - INFO - Email service disabled by admin
+2025-08-13 02:53:13,364 - EmailService - INFO - Email service is disabled. Skipping email to [REDACTED] with subject: Test Email
+2025-08-13 02:53:17,307 - EmailService - INFO - Email service enabled by admin
+2025-08-13 02:53:22,476 - EmailService - ERROR - No SMTP configuration found
+2025-08-13 02:55:55,705 - EmailService - INFO - Email service disabled by admin
