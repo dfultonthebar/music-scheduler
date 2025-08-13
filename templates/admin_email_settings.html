@@ -1,0 +1,751 @@
+
+{% extends "base.html" %}
+
+{% block title %}Email Settings - Music Scheduler{% endblock %}
+
+{% block content %}
+<script>
+// Apply dashboard body class
+document.addEventListener('DOMContentLoaded', function() {
+    document.body.classList.add('dashboard');
+});
+</script>
+
+<div class="header">
+    <h1>🎵 Email Notification Settings</h1>
+    <div class="nav">
+        <span>Welcome, {{ session.user.username }} ({{ session.user.role }})</span>
+        <a href="/dashboard" class="nav-link">📊 Dashboard</a>
+        <a href="/admin/calendar" class="nav-link">📅 Calendar</a>
+        <a href="/admin/assignments" class="nav-link">👥 Assignments</a>
+        <a href="/logout">Logout</a>
+    </div>
+</div>
+
+<div class="container">
+    <!-- Success/Error Messages -->
+    <div id="message-container" style="margin-bottom: 20px;"></div>
+    
+    <!-- Master Email Service Toggle -->
+    <div class="section" style="margin-bottom: 20px;">
+        <div class="email-service-status">
+            <div class="service-status-info">
+                <div class="status-display">
+                    <h3>📧 Email Service Control</h3>
+                    <span id="email-service-indicator-settings" class="status-indicator"></span>
+                </div>
+                <div class="toggle-container">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="email-service-toggle-settings" onchange="toggleEmailServiceSettings()">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span class="toggle-label">Enable Email Notifications</span>
+                </div>
+            </div>
+            <div class="service-status-details">
+                <span id="email-service-status-text-settings">Loading...</span><br>
+                <small>Last updated: <span id="last-updated-settings">--</span> by <span id="updated-by-settings">--</span></small>
+            </div>
+            <div id="email-disabled-warning" class="alert alert-warning" style="display: none; margin-top: 15px;">
+                ⚠️ <strong>Email service is disabled.</strong> Configure settings below and enable the service to start sending notifications.
+            </div>
+        </div>
+    </div>
+    
+    <!-- Email Settings Tabs -->
+    <div class="tabs">
+        <button class="tab-button active" onclick="openTab(event, 'smtp-config')">SMTP Configuration</button>
+        <button class="tab-button" onclick="openTab(event, 'email-templates')">Email Templates</button>
+        <button class="tab-button" onclick="openTab(event, 'email-logs')">Email Logs</button>
+        <button class="tab-button" onclick="openTab(event, 'test-email')">Test Email</button>
+    </div>
+
+    <!-- SMTP Configuration Tab -->
+    <div id="smtp-config" class="tab-content active">
+        <div class="section">
+            <h2>SMTP Server Configuration</h2>
+            <form id="smtp-form">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="smtp_host">SMTP Host *</label>
+                        <input type="text" id="smtp_host" name="smtp_host" required 
+                               placeholder="e.g., smtp.gmail.com">
+                        <small>Your email provider's SMTP server address</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="smtp_port">SMTP Port *</label>
+                        <input type="number" id="smtp_port" name="smtp_port" value="587" required>
+                        <small>Common ports: 587 (STARTTLS), 465 (SSL), 25 (None)</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="smtp_security">Security Type</label>
+                        <select id="smtp_security" name="smtp_security">
+                            <option value="STARTTLS">STARTTLS (Recommended)</option>
+                            <option value="SSL">SSL/TLS</option>
+                            <option value="NONE">None (Not recommended)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="smtp_username">SMTP Username *</label>
+                        <input type="text" id="smtp_username" name="smtp_username" required 
+                               placeholder="your-email@example.com">
+                        <small>Usually your email address</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="smtp_password">SMTP Password *</label>
+                        <input type="password" id="smtp_password" name="smtp_password" required>
+                        <small>Your email password or app-specific password</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="from_email">From Email Address *</label>
+                        <input type="email" id="from_email" name="from_email" required 
+                               placeholder="scheduler@yourschool.com">
+                        <small>Email address that will appear as sender</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="from_name">From Name</label>
+                        <input type="text" id="from_name" name="from_name" value="Music Scheduler"
+                               placeholder="Your Music School">
+                        <small>Display name for the sender</small>
+                    </div>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="button" onclick="testSmtpConnection()" class="btn btn-secondary">
+                        🔧 Test Connection
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        💾 Save Configuration
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Email Templates Tab -->
+    <div id="email-templates" class="tab-content">
+        <div class="section">
+            <h2>Email Templates</h2>
+            <p>Customize the email templates sent to students and instructors.</p>
+            
+            <div id="templates-container">
+                <!-- Templates will be loaded here dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Email Logs Tab -->
+    <div id="email-logs" class="tab-content">
+        <div class="section">
+            <h2>Email Activity Logs</h2>
+            <p>Review recent email notifications sent by the system.</p>
+            
+            <div class="table-container">
+                <table id="email-logs-table">
+                    <thead>
+                        <tr>
+                            <th>Date/Time</th>
+                            <th>Recipient</th>
+                            <th>Subject</th>
+                            <th>Type</th>
+                            <th>Status</th>
+                            <th>Student</th>
+                        </tr>
+                    </thead>
+                    <tbody id="email-logs-body">
+                        <!-- Logs will be loaded here -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="form-actions">
+                <button onclick="loadEmailLogs()" class="btn btn-secondary">🔄 Refresh Logs</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Test Email Tab -->
+    <div id="test-email" class="tab-content">
+        <div class="section">
+            <h2>Send Test Email</h2>
+            <p>Send a test email to verify your configuration is working correctly.</p>
+            
+            <form id="test-email-form">
+                <div class="form-group">
+                    <label for="test_email_address">Test Email Address *</label>
+                    <input type="email" id="test_email_address" name="test_email_address" required 
+                           placeholder="your-email@example.com">
+                    <small>Enter an email address to receive the test message</small>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">
+                        📧 Send Test Email
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Tab Styles */
+.tabs {
+    display: flex;
+    background-color: #f1f1f1;
+    border-radius: 8px 8px 0 0;
+    overflow: hidden;
+}
+
+.tab-button {
+    background-color: inherit;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    padding: 14px 20px;
+    transition: 0.3s;
+    font-size: 16px;
+    flex: 1;
+}
+
+.tab-button:hover {
+    background-color: #ddd;
+}
+
+.tab-button.active {
+    background-color: #007bff;
+    color: white;
+}
+
+.tab-content {
+    display: none;
+    padding: 0;
+    border-radius: 0 0 8px 8px;
+    background-color: #f9f9f9;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.form-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #ddd;
+}
+
+.btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    text-decoration: none;
+    display: inline-block;
+    transition: background-color 0.3s;
+}
+
+.btn-primary {
+    background-color: #007bff;
+    color: white;
+}
+
+.btn-primary:hover {
+    background-color: #0056b3;
+}
+
+.btn-secondary {
+    background-color: #6c757d;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background-color: #545b62;
+}
+
+.table-container {
+    overflow-x: auto;
+    margin-top: 20px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background-color: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+th, td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+
+th {
+    background-color: #f8f9fa;
+    font-weight: bold;
+}
+
+tr:hover {
+    background-color: #f5f5f5;
+}
+
+.status-sent { color: #28a745; font-weight: bold; }
+.status-failed { color: #dc3545; font-weight: bold; }
+.status-pending { color: #ffc107; font-weight: bold; }
+
+.template-editor {
+    background-color: white;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.template-editor h3 {
+    margin-top: 0;
+    color: #007bff;
+}
+
+.template-editor textarea {
+    width: 100%;
+    min-height: 150px;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 14px;
+}
+
+small {
+    color: #666;
+    font-size: 12px;
+    display: block;
+    margin-top: 5px;
+}
+</style>
+
+<script>
+let currentSmtpConfig = null;
+
+// Tab functionality
+function openTab(evt, tabName) {
+    var i, tabcontent, tablinks;
+    tabcontent = document.getElementsByClassName("tab-content");
+    for (i = 0; i < tabcontent.length; i++) {
+        tabcontent[i].classList.remove("active");
+    }
+    tablinks = document.getElementsByClassName("tab-button");
+    for (i = 0; i < tablinks.length; i++) {
+        tablinks[i].classList.remove("active");
+    }
+    document.getElementById(tabName).classList.add("active");
+    evt.currentTarget.classList.add("active");
+    
+    // Load content when tab is opened
+    if (tabName === 'email-templates') {
+        loadEmailTemplates();
+    } else if (tabName === 'email-logs') {
+        loadEmailLogs();
+    }
+}
+
+// Load current SMTP configuration
+function loadSmtpConfig() {
+    fetch('/api/admin/email/smtp-config')
+        .then(response => response.json())
+        .then(data => {
+            if (data.config) {
+                currentSmtpConfig = data.config;
+                document.getElementById('smtp_host').value = data.config.smtp_host || '';
+                document.getElementById('smtp_port').value = data.config.smtp_port || 587;
+                document.getElementById('smtp_security').value = data.config.smtp_security || 'STARTTLS';
+                document.getElementById('smtp_username').value = data.config.smtp_username || '';
+                document.getElementById('from_email').value = data.config.from_email || '';
+                document.getElementById('from_name').value = data.config.from_name || 'Music Scheduler';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading SMTP config:', error);
+        });
+}
+
+// Save SMTP configuration
+document.getElementById('smtp-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const config = {
+        smtp_host: formData.get('smtp_host'),
+        smtp_port: parseInt(formData.get('smtp_port')),
+        smtp_security: formData.get('smtp_security'),
+        smtp_username: formData.get('smtp_username'),
+        smtp_password: formData.get('smtp_password'),
+        from_email: formData.get('from_email'),
+        from_name: formData.get('from_name')
+    };
+    
+    fetch('/api/admin/email/smtp-config', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(config)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.message) {
+            showMessage(data.message, 'success');
+            // Clear password field after successful save
+            document.getElementById('smtp_password').value = '';
+        } else {
+            showMessage(data.error || 'Failed to save configuration', 'error');
+        }
+    })
+    .catch(error => {
+        showMessage('Error saving configuration', 'error');
+        console.error('Error:', error);
+    });
+});
+
+// Test SMTP connection
+function testSmtpConnection() {
+    const config = {
+        smtp_host: document.getElementById('smtp_host').value,
+        smtp_port: parseInt(document.getElementById('smtp_port').value),
+        smtp_security: document.getElementById('smtp_security').value,
+        smtp_username: document.getElementById('smtp_username').value,
+        smtp_password: document.getElementById('smtp_password').value
+    };
+    
+    if (!config.smtp_host || !config.smtp_username || !config.smtp_password) {
+        showMessage('Please fill in all required fields before testing', 'error');
+        return;
+    }
+    
+    fetch('/api/admin/email/test-smtp', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(config)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.message) {
+            showMessage(data.message, 'success');
+        } else {
+            showMessage(data.error || 'SMTP test failed', 'error');
+        }
+    })
+    .catch(error => {
+        showMessage('Error testing SMTP connection', 'error');
+        console.error('Error:', error);
+    });
+}
+
+// Load email templates
+function loadEmailTemplates() {
+    fetch('/api/admin/email/templates')
+        .then(response => response.json())
+        .then(data => {
+            const container = document.getElementById('templates-container');
+            container.innerHTML = '';
+            
+            if (data.templates && data.templates.length > 0) {
+                data.templates.forEach(template => {
+                    const templateDiv = document.createElement('div');
+                    templateDiv.className = 'template-editor';
+                    templateDiv.innerHTML = `
+                        <h3>${template.template_name.replace(/_/g, ' ').toUpperCase()}</h3>
+                        <p><strong>Type:</strong> ${template.template_type}</p>
+                        
+                        <div class="form-group">
+                            <label>Subject Template:</label>
+                            <textarea id="subject_${template.template_name}" rows="2">${template.subject_template}</textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Body Template:</label>
+                            <textarea id="body_${template.template_name}" rows="10">${template.body_template}</textarea>
+                        </div>
+                        
+                        <button onclick="updateTemplate('${template.template_name}')" class="btn btn-primary">
+                            💾 Update Template
+                        </button>
+                    `;
+                    container.appendChild(templateDiv);
+                });
+            } else {
+                container.innerHTML = '<p>No templates found.</p>';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading templates:', error);
+        });
+}
+
+// Update email template
+function updateTemplate(templateName) {
+    const subject = document.getElementById(`subject_${templateName}`).value;
+    const body = document.getElementById(`body_${templateName}`).value;
+    
+    fetch(`/api/admin/email/templates/${templateName}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ subject, body })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.message) {
+            showMessage(data.message, 'success');
+        } else {
+            showMessage(data.error || 'Failed to update template', 'error');
+        }
+    })
+    .catch(error => {
+        showMessage('Error updating template', 'error');
+        console.error('Error:', error);
+    });
+}
+
+// Load email logs
+function loadEmailLogs() {
+    fetch('/api/admin/email/logs?limit=50')
+        .then(response => response.json())
+        .then(data => {
+            const tbody = document.getElementById('email-logs-body');
+            tbody.innerHTML = '';
+            
+            if (data.logs && data.logs.length > 0) {
+                data.logs.forEach(log => {
+                    const row = document.createElement('tr');
+                    const sentAt = new Date(log.sent_at);
+                    row.innerHTML = `
+                        <td>${sentAt.toLocaleString()}</td>
+                        <td>${log.recipient_email}</td>
+                        <td>${log.subject}</td>
+                        <td>${log.email_type.replace(/_/g, ' ')}</td>
+                        <td><span class="status-${log.status}">${log.status.toUpperCase()}</span></td>
+                        <td>${log.student_name || '-'}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            } else {
+                tbody.innerHTML = '<tr><td colspan="6">No email logs found</td></tr>';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading email logs:', error);
+        });
+}
+
+// Send test email
+document.getElementById('test-email-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const testEmail = document.getElementById('test_email_address').value;
+    
+    fetch('/api/admin/email/send-test', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ test_email: testEmail })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.message) {
+            showMessage('Test email sent successfully! Check your inbox.', 'success');
+        } else {
+            showMessage(data.error || 'Failed to send test email', 'error');
+        }
+    })
+    .catch(error => {
+        showMessage('Error sending test email', 'error');
+        console.error('Error:', error);
+    });
+});
+
+// Show message function
+function showMessage(message, type) {
+    const container = document.getElementById('message-container');
+    const alertClass = type === 'success' ? 'alert-success' : 'alert-error';
+    
+    container.innerHTML = `
+        <div class="alert ${alertClass}">
+            ${message}
+        </div>
+    `;
+    
+    // Auto-hide after 5 seconds
+    setTimeout(() => {
+        container.innerHTML = '';
+    }, 5000);
+}
+
+// Email Service Toggle Functions for Settings Page
+async function loadEmailServiceStatusSettings() {
+    try {
+        const response = await fetch('/api/admin/email/service-status');
+        const result = await response.json();
+        
+        if (result.success) {
+            const toggle = document.getElementById('email-service-toggle-settings');
+            const statusText = document.getElementById('email-service-status-text-settings');
+            const indicator = document.getElementById('email-service-indicator-settings');
+            const lastUpdated = document.getElementById('last-updated-settings');
+            const updatedBy = document.getElementById('updated-by-settings');
+            const warning = document.getElementById('email-disabled-warning');
+            
+            toggle.checked = result.enabled;
+            statusText.textContent = result.enabled ? 'Email notifications are ENABLED' : 'Email notifications are DISABLED';
+            indicator.className = `status-indicator ${result.enabled ? 'enabled' : 'disabled'}`;
+            
+            // Show/hide warning
+            warning.style.display = result.enabled ? 'none' : 'block';
+            
+            if (result.updated_at) {
+                const updateTime = new Date(result.updated_at).toLocaleString();
+                lastUpdated.textContent = updateTime;
+            }
+            updatedBy.textContent = result.updated_by || '--';
+        } else {
+            console.error('Failed to load email service status:', result.error);
+        }
+    } catch (error) {
+        console.error('Error loading email service status:', error);
+    }
+}
+
+async function toggleEmailServiceSettings() {
+    const toggle = document.getElementById('email-service-toggle-settings');
+    const enabled = toggle.checked;
+    
+    try {
+        const response = await fetch('/api/admin/email/service-toggle', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ enabled })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Reload status to update UI
+            await loadEmailServiceStatusSettings();
+            showMessage(result.message, 'success');
+        } else {
+            // Revert toggle on error
+            toggle.checked = !enabled;
+            showMessage('Error: ' + result.error, 'error');
+        }
+    } catch (error) {
+        // Revert toggle on error
+        toggle.checked = !enabled;
+        console.error('Error toggling email service:', error);
+        showMessage('Failed to update email service status', 'error');
+    }
+}
+
+// Update test email functionality to check if service is enabled
+function updateSendTestEmailButton() {
+    const toggle = document.getElementById('email-service-toggle-settings');
+    const sendButton = document.querySelector('#test-email button[type="submit"]');
+    
+    if (sendButton) {
+        if (!toggle.checked) {
+            sendButton.disabled = true;
+            sendButton.textContent = 'Email Service Disabled';
+            sendButton.title = 'Enable email service to send test emails';
+        } else {
+            sendButton.disabled = false;
+            sendButton.textContent = 'Send Test Email';
+            sendButton.title = '';
+        }
+    }
+}
+
+// Override the existing test email form submission
+document.addEventListener('DOMContentLoaded', function() {
+    const testForm = document.getElementById('test-email-form');
+    if (testForm) {
+        testForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const toggle = document.getElementById('email-service-toggle-settings');
+            if (!toggle.checked) {
+                showMessage('Cannot send test email: Email service is disabled. Please enable the service first.', 'error');
+                return;
+            }
+            
+            // Continue with original test email logic
+            const testEmail = document.getElementById('test_email').value;
+            if (!testEmail) {
+                showMessage('Please enter a test email address', 'error');
+                return;
+            }
+            
+            fetch('/api/admin/email/send-test', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ test_email: testEmail })
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    showMessage(result.message || 'Test email sent successfully!', 'success');
+                } else if (result.skipped) {
+                    showMessage('Email service is disabled - test email was not sent', 'error');
+                } else {
+                    showMessage(result.error || 'Failed to send test email', 'error');
+                }
+            })
+            .catch(error => {
+                showMessage('Error sending test email', 'error');
+                console.error('Error:', error);
+            });
+        });
+    }
+});
+
+// Initialize page
+document.addEventListener('DOMContentLoaded', function() {
+    loadSmtpConfig();
+    loadEmailServiceStatusSettings();
+    
+    // Set up toggle change listener to update button state
+    const toggle = document.getElementById('email-service-toggle-settings');
+    if (toggle) {
+        toggle.addEventListener('change', updateSendTestEmailButton);
+        // Initial update
+        setTimeout(updateSendTestEmailButton, 500);
+    }
+});
+</script>
+
+{% endblock %}

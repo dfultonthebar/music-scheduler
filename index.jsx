@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client';
 import Calendar from 'react-calendar';
 import './src/index.css';
 
-const API_BASE_URL = 'http://192.168.1.63';
+const API_BASE_URL = '';
 
 const InstructorDashboard = ({ token }) => {
   const [students, setStudents] = useState([]);

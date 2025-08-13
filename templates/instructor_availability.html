@@ -1,0 +1,364 @@
+
+{% extends "base.html" %}
+
+{% block title %}Manage Availability - Music Scheduler{% endblock %}
+
+{% block content %}
+<div class="header">
+    <h1>⏰ Manage Availability</h1>
+    <div class="nav">
+        <a href="/instructor">← Back to Dashboard</a>
+        <span>{{ session.user.username }}</span>
+        <a href="/logout">Logout</a>
+    </div>
+</div>
+
+{% if error %}
+<div class="alert alert-error">
+    {{ error }}
+</div>
+{% endif %}
+
+{% if success %}
+<div class="alert alert-success">
+    {{ success }}
+</div>
+{% endif %}
+
+<!-- Add Availability Section -->
+<div class="section">
+    <h2>Set Weekly Availability</h2>
+    <form method="POST" action="/instructor/availability">
+        <input type="hidden" name="action" value="add_availability">
+        <div class="form-row">
+            <div class="form-group">
+                <label for="days_of_week">Days of Week:</label>
+                <select id="days_of_week" name="days_of_week" multiple required style="height: 120px;">
+                    <option value="Monday">Monday</option>
+                    <option value="Tuesday">Tuesday</option>
+                    <option value="Wednesday">Wednesday</option>
+                    <option value="Thursday">Thursday</option>
+                    <option value="Friday">Friday</option>
+                    <option value="Saturday">Saturday</option>
+                    <option value="Sunday">Sunday</option>
+                </select>
+                <small>Hold Ctrl/Cmd to select multiple days</small>
+            </div>
+            <div class="form-group">
+                <label for="start_time">Start Time:</label>
+                <input type="time" id="start_time" name="start_time" required>
+            </div>
+            <div class="form-group">
+                <label for="end_time">End Time:</label>
+                <input type="time" id="end_time" name="end_time" required>
+            </div>
+        </div>
+        <button type="submit" class="btn">Add Availability</button>
+    </form>
+</div>
+
+<!-- Current Availability Section -->
+<div class="section">
+    <h2>Current Availability</h2>
+    <div id="availability-list">
+        <p>Loading availability...</p>
+    </div>
+</div>
+
+<!-- Time Off Section -->
+<div class="section">
+    <h2>Request Time Off</h2>
+    <form method="POST" action="/instructor/availability">
+        <input type="hidden" name="action" value="add_time_off">
+        <div class="form-row">
+            <div class="form-group">
+                <label for="start_date">Start Date:</label>
+                <input type="date" id="start_date" name="start_date" required>
+            </div>
+            <div class="form-group">
+                <label for="end_date">End Date:</label>
+                <input type="date" id="end_date" name="end_date" required>
+            </div>
+        </div>
+        <button type="submit" class="btn">Request Time Off</button>
+    </form>
+</div>
+
+<!-- Current Time Off Section -->
+<div class="section">
+    <h2>Scheduled Time Off</h2>
+    <div id="timeoff-list">
+        <p>Loading time off...</p>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    loadAvailability();
+    loadTimeOff();
+});
+
+async function loadAvailability() {
+    try {
+        const response = await fetch('/api/availability');
+        const data = await response.json();
+        
+        if (data.availability) {
+            const availabilityList = document.getElementById('availability-list');
+            
+            if (data.availability.length === 0) {
+                availabilityList.innerHTML = '<p>No availability set. Please add your availability above.</p>';
+            } else {
+                const table = `
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Day</th>
+                                <th>Start Time</th>
+                                <th>End Time</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.availability.map(slot => `
+                                <tr id="availability-${slot.id}">
+                                    <td><span class="badge">${slot.day_name || 'Day ' + slot.day_of_week}</span></td>
+                                    <td>${slot.start_time}</td>
+                                    <td>${slot.end_time}</td>
+                                    <td>
+                                        <button type="button" class="btn" style="background: #4a90e2; padding: 0.25rem 0.5rem; margin: 0; margin-right: 0.25rem;" onclick="editAvailability(${slot.id}, '${slot.day_name}', '${slot.start_time}', '${slot.end_time}')">Edit</button>
+                                        <button type="button" class="btn" style="background: #dc3545; padding: 0.25rem 0.5rem; margin: 0;" onclick="deleteAvailability(${slot.id})">Delete</button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+                availabilityList.innerHTML = table;
+            }
+        }
+    } catch (error) {
+        console.error('Error loading availability:', error);
+        document.getElementById('availability-list').innerHTML = '<p>Error loading availability.</p>';
+    }
+}
+
+async function loadTimeOff() {
+    try {
+        const response = await fetch('/api/time-off');
+        const data = await response.json();
+        
+        if (data.time_off) {
+            const timeOffList = document.getElementById('timeoff-list');
+            
+            if (data.time_off.length === 0) {
+                timeOffList.innerHTML = '<p>No time off scheduled.</p>';
+            } else {
+                const table = `
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Start Date</th>
+                                <th>End Date</th>
+                                <th>Duration</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.time_off.map(timeOff => `
+                                <tr>
+                                    <td>${formatDate(timeOff.start_date)}</td>
+                                    <td>${formatDate(timeOff.end_date)}</td>
+                                    <td>${calculateDays(timeOff.start_date, timeOff.end_date)} day(s)</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+                timeOffList.innerHTML = table;
+            }
+        }
+    } catch (error) {
+        console.error('Error loading time off:', error);
+        document.getElementById('timeoff-list').innerHTML = '<p>Error loading time off.</p>';
+    }
+}
+
+function formatDate(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'short', 
+        day: 'numeric' 
+    });
+}
+
+function calculateDays(startDate, endDate) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const timeDiff = end.getTime() - start.getTime();
+    return Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1;
+}
+
+async function editAvailability(id, dayName, startTime, endTime) {
+    // Create a modal dialog for editing
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+        background: rgba(0,0,0,0.5); display: flex; justify-content: center; 
+        align-items: center; z-index: 1000;
+    `;
+    
+    const dayOptions = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    
+    modal.innerHTML = `
+        <div style="background: white; padding: 2rem; border-radius: 10px; max-width: 400px; width: 90%;">
+            <h3 style="margin-bottom: 1rem; color: #5a67d8;">Edit Availability</h3>
+            <form id="edit-form">
+                <div style="margin-bottom: 1rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: #4a5568;">Day:</label>
+                    <select id="edit-day" required style="width: 100%; padding: 0.5rem; border: 1px solid #e2e8f0; border-radius: 4px;">
+                        ${dayOptions.map(day => `<option value="${day}" ${day === dayName ? 'selected' : ''}>${day}</option>`).join('')}
+                    </select>
+                </div>
+                <div style="margin-bottom: 1rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: #4a5568;">Start Time:</label>
+                    <input type="time" id="edit-start-time" required style="width: 100%; padding: 0.5rem; border: 1px solid #e2e8f0; border-radius: 4px;">
+                </div>
+                <div style="margin-bottom: 1rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: #4a5568;">End Time:</label>
+                    <input type="time" id="edit-end-time" required style="width: 100%; padding: 0.5rem; border: 1px solid #e2e8f0; border-radius: 4px;">
+                </div>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button type="submit" style="flex: 1; background: #5a67d8; color: white; padding: 0.75rem; border: none; border-radius: 4px; cursor: pointer;">Update</button>
+                    <button type="button" onclick="this.closest('.modal-container').remove()" style="flex: 1; background: #718096; color: white; padding: 0.75rem; border: none; border-radius: 4px; cursor: pointer;">Cancel</button>
+                </div>
+            </form>
+        </div>
+    `;
+    modal.className = 'modal-container';
+    
+    // Convert 12-hour time to 24-hour for input fields
+    const startTime24 = convertTo24Hour(startTime);
+    const endTime24 = convertTo24Hour(endTime);
+    
+    document.body.appendChild(modal);
+    
+    // Set time values after modal is in DOM
+    document.getElementById('edit-start-time').value = startTime24;
+    document.getElementById('edit-end-time').value = endTime24;
+    
+    // Handle form submission
+    document.getElementById('edit-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const formData = {
+            day_of_week: document.getElementById('edit-day').value,
+            start_time: document.getElementById('edit-start-time').value,
+            end_time: document.getElementById('edit-end-time').value
+        };
+        
+        try {
+            const response = await fetch(`/api/availability/${id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(formData)
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok) {
+                modal.remove();
+                loadAvailability(); // Refresh the list
+                showAlert(result.message, 'success');
+            } else {
+                showAlert(result.error || 'Failed to update availability', 'error');
+            }
+        } catch (error) {
+            console.error('Error updating availability:', error);
+            showAlert('Error updating availability', 'error');
+        }
+    });
+}
+
+async function deleteAvailability(id) {
+    if (!confirm('Are you sure you want to delete this availability slot?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/availability/${id}`, {
+            method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            loadAvailability(); // Refresh the list
+            showAlert(result.message, 'success');
+        } else {
+            showAlert(result.error || 'Failed to delete availability', 'error');
+        }
+    } catch (error) {
+        console.error('Error deleting availability:', error);
+        showAlert('Error deleting availability', 'error');
+    }
+}
+
+function convertTo24Hour(time12h) {
+    if (!time12h) return '';
+    
+    try {
+        // Handle various formats
+        const time = time12h.toLowerCase().replace(/\s/g, '');
+        const isAM = time.includes('am');
+        const isPM = time.includes('pm');
+        
+        if (!isAM && !isPM) {
+            // Already 24-hour format or no AM/PM
+            return time;
+        }
+        
+        let [hours, minutes] = time.replace(/[ap]m/, '').split(':');
+        hours = parseInt(hours, 10);
+        minutes = minutes || '00';
+        
+        if (isPM && hours !== 12) {
+            hours += 12;
+        } else if (isAM && hours === 12) {
+            hours = 0;
+        }
+        
+        return `${hours.toString().padStart(2, '0')}:${minutes}`;
+    } catch (error) {
+        console.error('Time conversion error:', error);
+        return time12h;
+    }
+}
+
+function showAlert(message, type) {
+    // Remove existing alerts
+    const existingAlerts = document.querySelectorAll('.dynamic-alert');
+    existingAlerts.forEach(alert => alert.remove());
+    
+    const alert = document.createElement('div');
+    alert.className = `alert alert-${type} dynamic-alert`;
+    alert.textContent = message;
+    alert.style.marginBottom = '1rem';
+    
+    // Insert after the header
+    const header = document.querySelector('.header');
+    if (header.nextSibling) {
+        header.parentNode.insertBefore(alert, header.nextSibling);
+    } else {
+        header.parentNode.appendChild(alert);
+    }
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        alert.remove();
+    }, 5000);
+}
+</script>
+{% endblock %}

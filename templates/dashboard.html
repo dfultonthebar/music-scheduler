@@ -1,0 +1,1119 @@
+
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard - Music Scheduler{% endblock %}
+
+{% block content %}
+<script>
+// Apply dashboard body class
+document.addEventListener('DOMContentLoaded', function() {
+    document.body.classList.add('dashboard');
+});
+</script>
+<div class="header">
+    <h1>🎵 Music Scheduler Dashboard</h1>
+    <div class="nav">
+        <span>Welcome, {{ session.user.username }} ({{ session.user.role }})</span>
+        <a href="/admin/calendar" class="nav-link">📅 Calendar</a>
+        <a href="/admin/assignments" class="nav-link">👥 Assignments</a>
+        <a href="/admin/email-settings" class="nav-link">📧 Email Settings</a>
+        <a href="/logout">Logout</a>
+    </div>
+</div>
+
+{% if error %}
+<div class="alert alert-error">
+    {{ error }}
+</div>
+{% endif %}
+
+{% if success %}
+<div class="alert alert-success">
+    {{ success }}
+</div>
+{% endif %}
+
+<!-- Email Service Status Section -->
+<div class="section">
+    <h2>📧 Email Service Status</h2>
+    <div class="email-service-status">
+        <div class="service-status-info">
+            <div class="status-display">
+                <span id="email-service-status-text">Loading...</span>
+                <span id="email-service-indicator" class="status-indicator"></span>
+            </div>
+            <div class="toggle-container">
+                <label class="toggle-switch">
+                    <input type="checkbox" id="email-service-toggle" onchange="toggleEmailService()">
+                    <span class="toggle-slider"></span>
+                </label>
+                <span class="toggle-label">Enable Email Notifications</span>
+            </div>
+        </div>
+        <div class="service-status-details">
+            <small id="email-service-details">Last updated: <span id="last-updated">--</span> by <span id="updated-by">--</span></small>
+        </div>
+    </div>
+</div>
+
+<!-- Add New User Section -->
+<div class="section">
+    <h2>Add New User (Admin/Instructor)</h2>
+    <form method="POST" action="/dashboard" id="add-user-form">
+        <input type="hidden" name="action" value="add_user">
+        <div class="form-row">
+            <div class="form-group">
+                <label for="user_username">Username:</label>
+                <input type="text" id="user_username" name="user_username" required>
+            </div>
+            <div class="form-group">
+                <label for="user_password">Password:</label>
+                <input type="password" id="user_password" name="user_password" required>
+            </div>
+            <div class="form-group">
+                <label for="user_role">Role:</label>
+                <select id="user_role" name="user_role" required onchange="toggleContactFields()">
+                    <option value="">Select Role</option>
+                    <option value="admin">Admin</option>
+                    <option value="instructor">Instructor</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-row" id="contact-fields" style="display: none;">
+            <div class="form-group">
+                <label for="user_email">Email: <span style="color: red;">*</span></label>
+                <input type="email" id="user_email" name="user_email" placeholder="instructor@example.com">
+                <small class="form-help">Required for instructors - used for lesson notifications</small>
+            </div>
+            <div class="form-group">
+                <label for="user_phone">Phone Number: <span style="color: red;">*</span></label>
+                <input type="tel" id="user_phone" name="user_phone" placeholder="(555) 123-4567">
+                <small class="form-help">Required for instructors - contact information</small>
+            </div>
+        </div>
+        <button type="submit" class="btn">Add User</button>
+    </form>
+</div>
+
+<!-- Add New Student Section -->
+<div class="section">
+    <h2>Add New Student</h2>
+    <form method="POST" action="/dashboard" id="add-student-form">
+        <input type="hidden" name="action" value="add_student">
+        <div class="form-row">
+            <div class="form-group">
+                <label for="student_name">Student Name:</label>
+                <input type="text" id="student_name" name="student_name" required>
+            </div>
+            <div class="form-group">
+                <label for="student_email">Email:</label>
+                <input type="email" id="student_email" name="student_email" required>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label for="student_phone">Phone:</label>
+                <input type="tel" id="student_phone" name="student_phone" required>
+            </div>
+            <div class="form-group">
+                <label for="student_instrument">Instrument:</label>
+                <select id="student_instrument" name="student_instrument" required>
+                    <option value="">Select Instrument</option>
+                    <option value="Piano">Piano</option>
+                    <option value="Guitar">Guitar</option>
+                    <option value="Violin">Violin</option>
+                    <option value="Drums">Drums</option>
+                    <option value="Flute">Flute</option>
+                    <option value="Saxophone">Saxophone</option>
+                    <option value="Trumpet">Trumpet</option>
+                    <option value="Voice">Voice</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+        </div>
+        <button type="submit" class="btn">Add Student</button>
+    </form>
+</div>
+
+<!-- Password Management Section -->
+<div class="section">
+    <h2>🔐 Password Management</h2>
+    <p>Manage passwords for all system users. Only administrators can change user passwords.</p>
+    <div id="password-management-list">
+        <p>Loading users...</p>
+    </div>
+</div>
+
+<!-- Password Change Modal -->
+<div id="password-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>🔑 Change Password</h3>
+            <span class="close" onclick="closePasswordModal()">&times;</span>
+        </div>
+        <div class="modal-body">
+            <form id="password-form">
+                <div class="form-group">
+                    <label>User:</label>
+                    <input type="text" id="target-username" readonly disabled class="readonly-input">
+                </div>
+                <div class="form-group">
+                    <label for="new-password">New Password:</label>
+                    <input type="password" id="new-password" name="new_password" required minlength="6" 
+                           placeholder="Enter new password (minimum 6 characters)">
+                    <small class="form-help">Password must be at least 6 characters long</small>
+                </div>
+                <div class="form-group">
+                    <label for="confirm-password">Confirm Password:</label>
+                    <input type="password" id="confirm-password" name="confirm_password" required minlength="6" 
+                           placeholder="Confirm new password">
+                </div>
+                <div id="password-error" class="error-message" style="display: none;"></div>
+                <div id="password-success" class="success-message" style="display: none;"></div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closePasswordModal()">Cancel</button>
+            <button type="button" class="btn btn-primary" onclick="changePassword()" id="change-password-btn">Change Password</button>
+        </div>
+    </div>
+</div>
+
+<!-- Update Existing Instructors Section -->
+<div class="section" id="instructor-update-section" style="display: none;">
+    <h2>📝 Update Instructor Contact Information</h2>
+    <p>Update contact information for existing instructors. This is required for email notifications to work properly.</p>
+    <div id="instructor-contact-update">
+        <p>Loading instructors without contact info...</p>
+    </div>
+</div>
+
+<!-- Current Users Section -->
+<div class="section">
+    <div class="section-header">
+        <h2>Current Users</h2>
+        <div class="bulk-actions">
+            <button id="bulk-delete-users-btn" class="btn btn-danger" onclick="showBulkDeleteUsersDialog()" disabled>
+                🗑️ Delete Selected Users
+            </button>
+            <button id="view-audit-log-btn" class="btn btn-secondary" onclick="showAuditLogModal()">
+                📋 View Deletion Audit Log
+            </button>
+        </div>
+    </div>
+    <div id="users-list">
+        <p>Loading users...</p>
+    </div>
+</div>
+
+<!-- Current Students Section -->
+<div class="section">
+    <div class="section-header">
+        <h2>Current Students</h2>
+        <div class="bulk-actions">
+            <button id="bulk-delete-students-btn" class="btn btn-danger" onclick="showBulkDeleteStudentsDialog()" disabled>
+                🗑️ Delete Selected Students
+            </button>
+        </div>
+    </div>
+    <div id="students-list">
+        <p>Loading students...</p>
+    </div>
+</div>
+
+<!-- Current Lessons Section -->
+<div class="section">
+    <h2>Current Lessons</h2>
+    <div id="lessons-list">
+        <p>Loading lessons...</p>
+    </div>
+</div>
+
+<script>
+// Load data when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    loadUsers();
+    loadStudents();
+    loadLessons();
+    loadPasswordManagementUsers();
+    loadInstructorsNeedingUpdate();
+});
+
+async function loadUsers() {
+    try {
+        const response = await fetch('/api/users');
+        const data = await response.json();
+        
+        if (data.users) {
+            const usersList = document.getElementById('users-list');
+            if (data.users.length === 0) {
+                usersList.innerHTML = '<p>No users found.</p>';
+            } else {
+                const table = `
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>
+                                    <input type="checkbox" id="select-all-users" onchange="toggleAllUsers(this)">
+                                </th>
+                                <th>ID</th>
+                                <th>Username</th>
+                                <th>Role</th>
+                                <th>Email</th>
+                                <th>Phone</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.users.map(user => `
+                                <tr data-user-id="${user.id}">
+                                    <td>
+                                        <input type="checkbox" class="user-checkbox" value="${user.id}" onchange="updateBulkDeleteButton()">
+                                    </td>
+                                    <td>${user.id}</td>
+                                    <td>${user.username}</td>
+                                    <td><span class="status ${user.role}">${user.role}</span></td>
+                                    <td>${user.email || '<span class="text-muted">Not provided</span>'}</td>
+                                    <td>${user.phone || '<span class="text-muted">Not provided</span>'}</td>
+                                    <td class="actions-cell">
+                                        <button class="btn btn-small btn-danger" onclick="showDeleteUserDialog(${user.id}, '${user.username}', '${user.role}')">
+                                            🗑️ Delete
+                                        </button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+                usersList.innerHTML = table;
+            }
+        }
+    } catch (error) {
+        console.error('Error loading users:', error);
+        document.getElementById('users-list').innerHTML = '<p>Error loading users.</p>';
+    }
+}
+
+async function loadStudents() {
+    try {
+        const response = await fetch('/api/students');
+        const data = await response.json();
+        
+        if (data.students) {
+            const studentsList = document.getElementById('students-list');
+            if (data.students.length === 0) {
+                studentsList.innerHTML = '<p>No students found.</p>';
+            } else {
+                const table = `
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>
+                                    <input type="checkbox" id="select-all-students" onchange="toggleAllStudents(this)">
+                                </th>
+                                <th>ID</th>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Phone</th>
+                                <th>Instrument</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.students.map(student => `
+                                <tr data-student-id="${student.id}">
+                                    <td>
+                                        <input type="checkbox" class="student-checkbox" value="${student.id}" onchange="updateBulkDeleteStudentButton()">
+                                    </td>
+                                    <td>${student.id}</td>
+                                    <td>${student.name}</td>
+                                    <td>${student.email}</td>
+                                    <td>${student.phone}</td>
+                                    <td><span class="badge">${student.instrument}</span></td>
+                                    <td class="actions-cell">
+                                        <button class="btn btn-small btn-danger" onclick="showDeleteStudentDialog(${student.id}, '${student.name}')">
+                                            🗑️ Delete
+                                        </button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+                studentsList.innerHTML = table;
+            }
+        }
+    } catch (error) {
+        console.error('Error loading students:', error);
+        document.getElementById('students-list').innerHTML = '<p>Error loading students.</p>';
+    }
+}
+
+async function loadLessons() {
+    try {
+        const response = await fetch('/api/lessons');
+        const data = await response.json();
+        
+        if (data.lessons) {
+            const lessonsList = document.getElementById('lessons-list');
+            if (data.lessons.length === 0) {
+                lessonsList.innerHTML = '<p>No lessons found.</p>';
+            } else {
+                const table = `
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Student</th>
+                                <th>Date</th>
+                                <th>Time</th>
+                                <th>Duration</th>
+                                <th>Instrument</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.lessons.map(lesson => `
+                                <tr>
+                                    <td>${lesson.id}</td>
+                                    <td>${lesson.student_name}</td>
+                                    <td>${lesson.lesson_date}</td>
+                                    <td>${lesson.lesson_time}</td>
+                                    <td>${lesson.duration} minutes</td>
+                                    <td><span class="badge">${lesson.instrument}</span></td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+                lessonsList.innerHTML = table;
+            }
+        }
+    } catch (error) {
+        console.error('Error loading lessons:', error);
+        document.getElementById('lessons-list').innerHTML = '<p>Error loading lessons.</p>';
+    }
+}
+
+// Password Management Functions
+async function loadPasswordManagementUsers() {
+    try {
+        const response = await fetch('/api/all-users');
+        const data = await response.json();
+        
+        if (data.users) {
+            const passwordList = document.getElementById('password-management-list');
+            if (data.users.length === 0) {
+                passwordList.innerHTML = '<p>No users found.</p>';
+            } else {
+                const table = `
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Username</th>
+                                <th>Role</th>
+                                <th>Type</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.users.map(user => `
+                                <tr>
+                                    <td>${user.id}</td>
+                                    <td>${user.username}</td>
+                                    <td><span class="status ${user.role}">${user.role}</span></td>
+                                    <td><span class="badge ${user.user_type}">${user.user_type}</span></td>
+                                    <td>
+                                        ${user.user_type === 'user' ? 
+                                            `<button class="btn btn-sm btn-warning" onclick="openPasswordModal(${user.id}, '${user.username}', '${user.user_type}')">
+                                                🔑 Change Password
+                                            </button>` 
+                                            : '<span class="text-muted">N/A</span>'
+                                        }
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+                passwordList.innerHTML = table;
+            }
+        }
+    } catch (error) {
+        console.error('Error loading users for password management:', error);
+        document.getElementById('password-management-list').innerHTML = '<p>Error loading users for password management.</p>';
+    }
+}
+
+function openPasswordModal(userId, username, userType) {
+    // Set the target user information
+    document.getElementById('target-username').value = username;
+    
+    // Store user data for password change
+    window.currentPasswordChange = {
+        userId: userId,
+        username: username,
+        userType: userType
+    };
+    
+    // Clear form fields and messages
+    document.getElementById('new-password').value = '';
+    document.getElementById('confirm-password').value = '';
+    document.getElementById('password-error').style.display = 'none';
+    document.getElementById('password-success').style.display = 'none';
+    
+    // Show the modal
+    document.getElementById('password-modal').style.display = 'flex';
+}
+
+function closePasswordModal() {
+    document.getElementById('password-modal').style.display = 'none';
+    
+    // Clear stored user data
+    window.currentPasswordChange = null;
+    
+    // Clear form fields
+    document.getElementById('new-password').value = '';
+    document.getElementById('confirm-password').value = '';
+    document.getElementById('password-error').style.display = 'none';
+    document.getElementById('password-success').style.display = 'none';
+}
+
+async function changePassword() {
+    if (!window.currentPasswordChange) {
+        showPasswordError('No user selected for password change');
+        return;
+    }
+    
+    const newPassword = document.getElementById('new-password').value;
+    const confirmPassword = document.getElementById('confirm-password').value;
+    const changeBtn = document.getElementById('change-password-btn');
+    
+    // Clear previous messages
+    document.getElementById('password-error').style.display = 'none';
+    document.getElementById('password-success').style.display = 'none';
+    
+    // Client-side validation
+    if (!newPassword || !confirmPassword) {
+        showPasswordError('Please fill in both password fields');
+        return;
+    }
+    
+    if (newPassword !== confirmPassword) {
+        showPasswordError('Passwords do not match');
+        return;
+    }
+    
+    if (newPassword.length < 6) {
+        showPasswordError('Password must be at least 6 characters long');
+        return;
+    }
+    
+    // Disable the button during the request
+    changeBtn.disabled = true;
+    changeBtn.textContent = 'Changing...';
+    
+    try {
+        const response = await fetch(`/api/users/${window.currentPasswordChange.userId}/password`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                new_password: newPassword,
+                confirm_password: confirmPassword
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            showPasswordSuccess(data.message || 'Password changed successfully');
+            
+            // Auto-close modal after 2 seconds
+            setTimeout(() => {
+                closePasswordModal();
+                // Reload the password management list to reflect any changes
+                loadPasswordManagementUsers();
+            }, 2000);
+        } else {
+            showPasswordError(data.error || 'Failed to change password');
+        }
+        
+    } catch (error) {
+        console.error('Error changing password:', error);
+        showPasswordError('Network error occurred while changing password');
+    } finally {
+        // Re-enable the button
+        changeBtn.disabled = false;
+        changeBtn.textContent = 'Change Password';
+    }
+}
+
+function showPasswordError(message) {
+    const errorDiv = document.getElementById('password-error');
+    errorDiv.textContent = message;
+    errorDiv.style.display = 'block';
+    
+    // Hide success message if shown
+    document.getElementById('password-success').style.display = 'none';
+}
+
+function showPasswordSuccess(message) {
+    const successDiv = document.getElementById('password-success');
+    successDiv.textContent = message;
+    successDiv.style.display = 'block';
+    
+    // Hide error message if shown
+    document.getElementById('password-error').style.display = 'none';
+}
+
+// Close modal when clicking outside of it
+window.onclick = function(event) {
+    const modal = document.getElementById('password-modal');
+    if (event.target === modal) {
+        closePasswordModal();
+    }
+}
+
+// Handle Enter key in password form
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Enter' && document.getElementById('password-modal').style.display === 'flex') {
+        event.preventDefault();
+        changePassword();
+    }
+});
+
+// Email Service Toggle Functions
+async function loadEmailServiceStatus() {
+    try {
+        const response = await fetch('/api/admin/email/service-status');
+        const result = await response.json();
+        
+        if (result.success) {
+            const toggle = document.getElementById('email-service-toggle');
+            const statusText = document.getElementById('email-service-status-text');
+            const indicator = document.getElementById('email-service-indicator');
+            const lastUpdated = document.getElementById('last-updated');
+            const updatedBy = document.getElementById('updated-by');
+            
+            toggle.checked = result.enabled;
+            statusText.textContent = result.enabled ? 'Email notifications are ENABLED' : 'Email notifications are DISABLED';
+            indicator.className = `status-indicator ${result.enabled ? 'enabled' : 'disabled'}`;
+            
+            if (result.updated_at) {
+                const updateTime = new Date(result.updated_at).toLocaleString();
+                lastUpdated.textContent = updateTime;
+            }
+            updatedBy.textContent = result.updated_by || '--';
+        } else {
+            console.error('Failed to load email service status:', result.error);
+        }
+    } catch (error) {
+        console.error('Error loading email service status:', error);
+    }
+}
+
+async function toggleEmailService() {
+    const toggle = document.getElementById('email-service-toggle');
+    const enabled = toggle.checked;
+    
+    try {
+        const response = await fetch('/api/admin/email/service-toggle', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ enabled })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Reload status to update UI
+            await loadEmailServiceStatus();
+            
+            // Show success message
+            const alertContainer = document.createElement('div');
+            alertContainer.className = 'alert alert-success';
+            alertContainer.textContent = result.message;
+            alertContainer.style.marginBottom = '20px';
+            
+            const emailSection = document.querySelector('.email-service-status').parentNode;
+            emailSection.parentNode.insertBefore(alertContainer, emailSection);
+            
+            // Remove success message after 5 seconds
+            setTimeout(() => {
+                alertContainer.remove();
+            }, 5000);
+        } else {
+            // Revert toggle on error
+            toggle.checked = !enabled;
+            alert('Error: ' + result.error);
+        }
+    } catch (error) {
+        // Revert toggle on error
+        toggle.checked = !enabled;
+        console.error('Error toggling email service:', error);
+        alert('Failed to update email service status');
+    }
+}
+
+// Toggle contact fields visibility based on role selection
+function toggleContactFields() {
+    const roleSelect = document.getElementById('user_role');
+    const contactFields = document.getElementById('contact-fields');
+    const emailInput = document.getElementById('user_email');
+    const phoneInput = document.getElementById('user_phone');
+    
+    if (roleSelect.value === 'instructor') {
+        contactFields.style.display = 'block';
+        emailInput.required = true;
+        phoneInput.required = true;
+    } else {
+        contactFields.style.display = 'none';
+        emailInput.required = false;
+        phoneInput.required = false;
+        emailInput.value = '';
+        phoneInput.value = '';
+    }
+}
+
+// Form validation for user creation
+function validateUserForm() {
+    const role = document.getElementById('user_role').value;
+    const email = document.getElementById('user_email').value;
+    const phone = document.getElementById('user_phone').value;
+    
+    if (role === 'instructor') {
+        if (!email || !email.includes('@')) {
+            alert('Please enter a valid email address for instructor accounts.');
+            return false;
+        }
+        if (!phone || phone.trim().length < 10) {
+            alert('Please enter a valid phone number for instructor accounts.');
+            return false;
+        }
+    }
+    return true;
+}
+
+// Add form validation to user form submission
+document.addEventListener('DOMContentLoaded', function() {
+    const userForm = document.getElementById('add-user-form');
+    if (userForm) {
+        userForm.addEventListener('submit', function(e) {
+            if (!validateUserForm()) {
+                e.preventDefault();
+            }
+        });
+    }
+});
+
+// Load instructors needing contact information updates
+async function loadInstructorsNeedingUpdate() {
+    try {
+        const response = await fetch('/api/instructors-missing-contact');
+        const data = await response.json();
+        
+        const updateSection = document.getElementById('instructor-update-section');
+        const updateDiv = document.getElementById('instructor-contact-update');
+        
+        if (data.instructors && data.instructors.length > 0) {
+            updateSection.style.display = 'block';
+            
+            const instructorsList = data.instructors.map(instructor => `
+                <div class="instructor-update-card" style="border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px;">
+                    <h4>📋 ${instructor.username}</h4>
+                    <form id="update-form-${instructor.id}" onsubmit="updateInstructorContact(event, ${instructor.id})">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Email Address: <span style="color: red;">*</span></label>
+                                <input type="email" id="email-${instructor.id}" name="email" required placeholder="instructor@example.com">
+                            </div>
+                            <div class="form-group">
+                                <label>Phone Number: <span style="color: red;">*</span></label>
+                                <input type="tel" id="phone-${instructor.id}" name="phone" required placeholder="(555) 123-4567">
+                            </div>
+                        </div>
+                        <button type="submit" class="btn" style="background: #28a745;">Update Contact Info</button>
+                        <div id="update-result-${instructor.id}" class="update-result" style="margin-top: 10px;"></div>
+                    </form>
+                </div>
+            `).join('');
+            
+            updateDiv.innerHTML = `
+                <div class="alert" style="background-color: #fff3cd; border-color: #ffecb5; color: #856404; padding: 10px; border-radius: 4px; margin-bottom: 15px;">
+                    <strong>⚠️ Action Required:</strong> The following instructors need contact information to receive email notifications.
+                </div>
+                ${instructorsList}
+            `;
+        } else {
+            updateSection.style.display = 'none';
+        }
+    } catch (error) {
+        console.error('Error loading instructors needing update:', error);
+    }
+}
+
+// Update instructor contact information
+async function updateInstructorContact(event, instructorId) {
+    event.preventDefault();
+    
+    const email = document.getElementById(`email-${instructorId}`).value;
+    const phone = document.getElementById(`phone-${instructorId}`).value;
+    const resultDiv = document.getElementById(`update-result-${instructorId}`);
+    
+    try {
+        const response = await fetch(`/api/instructors/${instructorId}/contact`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email, phone })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            resultDiv.innerHTML = '<div class="success-message" style="color: #28a745; font-weight: bold;">✅ Contact information updated successfully!</div>';
+            // Reload the page after 2 seconds to refresh all data
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
+        } else {
+            resultDiv.innerHTML = `<div class="error-message" style="color: #dc3545; font-weight: bold;">❌ ${result.error || 'Update failed'}</div>`;
+        }
+    } catch (error) {
+        console.error('Error updating instructor contact:', error);
+        resultDiv.innerHTML = '<div class="error-message" style="color: #dc3545; font-weight: bold;">❌ Update failed due to network error</div>';
+    }
+}
+
+// Load email service status when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    loadEmailServiceStatus();
+});
+
+// ========================
+// USER DELETION FUNCTIONS
+// ========================
+
+// Toggle all user checkboxes
+function toggleAllUsers(selectAllCheckbox) {
+    const userCheckboxes = document.querySelectorAll('.user-checkbox');
+    userCheckboxes.forEach(checkbox => {
+        checkbox.checked = selectAllCheckbox.checked;
+    });
+    updateBulkDeleteButton();
+}
+
+// Toggle all student checkboxes
+function toggleAllStudents(selectAllCheckbox) {
+    const studentCheckboxes = document.querySelectorAll('.student-checkbox');
+    studentCheckboxes.forEach(checkbox => {
+        checkbox.checked = selectAllCheckbox.checked;
+    });
+    updateBulkDeleteStudentButton();
+}
+
+// Update bulk delete button state for users
+function updateBulkDeleteButton() {
+    const selectedUsers = document.querySelectorAll('.user-checkbox:checked');
+    const bulkDeleteBtn = document.getElementById('bulk-delete-users-btn');
+    bulkDeleteBtn.disabled = selectedUsers.length === 0;
+    bulkDeleteBtn.innerHTML = selectedUsers.length > 0 
+        ? `🗑️ Delete Selected Users (${selectedUsers.length})` 
+        : '🗑️ Delete Selected Users';
+}
+
+// Update bulk delete button state for students  
+function updateBulkDeleteStudentButton() {
+    const selectedStudents = document.querySelectorAll('.student-checkbox:checked');
+    const bulkDeleteBtn = document.getElementById('bulk-delete-students-btn');
+    bulkDeleteBtn.disabled = selectedStudents.length === 0;
+    bulkDeleteBtn.innerHTML = selectedStudents.length > 0 
+        ? `🗑️ Delete Selected Students (${selectedStudents.length})` 
+        : '🗑️ Delete Selected Students';
+}
+
+// Show single user deletion dialog
+async function showDeleteUserDialog(userId, username, role) {
+    try {
+        // First get deletion impact
+        const response = await fetch(`/api/admin/users/${userId}/deletion-impact`);
+        const data = await response.json();
+        
+        if (!response.ok) {
+            alert('Error: ' + (data.error || 'Failed to check deletion impact'));
+            return;
+        }
+        
+        const impact = data.impact;
+        let warningMessage = `Are you sure you want to delete user "${username}" (${role})?\\n\\n`;
+        
+        if (role === 'instructor') {
+            if (impact.lessons.future_count > 0) {
+                warningMessage += `⚠️ WARNING: This will cancel ${impact.lessons.future_count} future lesson(s)!\\n`;
+            }
+            if (impact.assignments.count > 0) {
+                warningMessage += `📋 This will remove ${impact.assignments.count} student assignment(s).\\n`;
+            }
+            if (impact.availability.count > 0) {
+                warningMessage += `📅 This will remove ${impact.availability.count} availability slot(s).\\n`;
+            }
+            if (impact.lessons.past_count > 0) {
+                warningMessage += `📚 ${impact.lessons.past_count} historical lesson(s) will be preserved for audit.\\n`;
+            }
+        }
+        
+        warningMessage += '\\nThis action cannot be undone!';
+        
+        if (confirm(warningMessage)) {
+            const reason = prompt('Please provide a reason for deletion (optional):');
+            await deleteUser(userId, reason || 'No reason provided');
+        }
+    } catch (error) {
+        console.error('Error showing delete dialog:', error);
+        alert('Failed to load deletion information. Please try again.');
+    }
+}
+
+// Show single student deletion dialog
+async function showDeleteStudentDialog(studentId, studentName) {
+    try {
+        // First get deletion impact
+        const response = await fetch(`/api/admin/students/${studentId}/deletion-impact`);
+        const data = await response.json();
+        
+        if (!response.ok) {
+            alert('Error: ' + (data.error || 'Failed to check deletion impact'));
+            return;
+        }
+        
+        const impact = data.impact;
+        let warningMessage = `Are you sure you want to delete student "${studentName}"?\\n\\n`;
+        
+        if (impact.lessons.future_count > 0) {
+            warningMessage += `⚠️ WARNING: This will cancel ${impact.lessons.future_count} future lesson(s)!\\n`;
+        }
+        if (impact.assignments.count > 0) {
+            warningMessage += `📋 This will remove ${impact.assignments.count} instructor assignment(s).\\n`;
+        }
+        if (impact.lessons.past_count > 0) {
+            warningMessage += `📚 ${impact.lessons.past_count} historical lesson(s) will be preserved for audit.\\n`;
+        }
+        
+        warningMessage += '\\nThis action cannot be undone!';
+        
+        if (confirm(warningMessage)) {
+            const reason = prompt('Please provide a reason for deletion (optional):');
+            await deleteStudent(studentId, reason || 'No reason provided');
+        }
+    } catch (error) {
+        console.error('Error showing delete dialog:', error);
+        alert('Failed to load deletion information. Please try again.');
+    }
+}
+
+// Delete single user
+async function deleteUser(userId, reason) {
+    try {
+        const response = await fetch(`/api/admin/users/${userId}/delete`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ reason })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            alert(`✅ ${data.message}\\n\\nSummary:\\n- Lessons cancelled: ${data.summary.lessons_cancelled}\\n- Assignments removed: ${data.summary.assignments_removed}\\n- Availability slots removed: ${data.summary.availability_removed}`);
+            // Reload user data
+            loadUsers();
+        } else {
+            alert('❌ Error: ' + (data.error || 'Failed to delete user'));
+        }
+    } catch (error) {
+        console.error('Error deleting user:', error);
+        alert('❌ Failed to delete user due to network error');
+    }
+}
+
+// Delete single student  
+async function deleteStudent(studentId, reason) {
+    try {
+        const response = await fetch(`/api/admin/students/${studentId}/delete`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ reason })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            alert(`✅ ${data.message}\\n\\nSummary:\\n- Lessons cancelled: ${data.summary.lessons_cancelled}\\n- Assignments removed: ${data.summary.assignments_removed}`);
+            // Reload student data
+            loadStudents();
+        } else {
+            alert('❌ Error: ' + (data.error || 'Failed to delete student'));
+        }
+    } catch (error) {
+        console.error('Error deleting student:', error);
+        alert('❌ Failed to delete student due to network error');
+    }
+}
+
+// Show bulk user deletion dialog
+function showBulkDeleteUsersDialog() {
+    const selectedUsers = document.querySelectorAll('.user-checkbox:checked');
+    if (selectedUsers.length === 0) {
+        alert('Please select users to delete');
+        return;
+    }
+    
+    const userCount = selectedUsers.length;
+    const warningMessage = `⚠️ WARNING: You are about to delete ${userCount} user(s).\\n\\nThis will:\\n- Cancel all future lessons for selected instructors\\n- Remove all student assignments\\n- Remove all availability slots\\n- Send cancellation notifications to affected students\\n\\nThis action cannot be undone!\\n\\nAre you sure you want to continue?`;
+    
+    if (confirm(warningMessage)) {
+        const reason = prompt('Please provide a reason for bulk deletion:');
+        if (reason !== null) {
+            const userIds = Array.from(selectedUsers).map(cb => parseInt(cb.value));
+            bulkDeleteUsers(userIds, [], reason);
+        }
+    }
+}
+
+// Show bulk student deletion dialog
+function showBulkDeleteStudentsDialog() {
+    const selectedStudents = document.querySelectorAll('.student-checkbox:checked');
+    if (selectedStudents.length === 0) {
+        alert('Please select students to delete');
+        return;
+    }
+    
+    const studentCount = selectedStudents.length;
+    const warningMessage = `⚠️ WARNING: You are about to delete ${studentCount} student(s).\\n\\nThis will:\\n- Cancel all future lessons for selected students\\n- Remove all instructor assignments\\n- Send cancellation notifications to affected instructors\\n\\nThis action cannot be undone!\\n\\nAre you sure you want to continue?`;
+    
+    if (confirm(warningMessage)) {
+        const reason = prompt('Please provide a reason for bulk deletion:');
+        if (reason !== null) {
+            const studentIds = Array.from(selectedStudents).map(cb => parseInt(cb.value));
+            bulkDeleteUsers([], studentIds, reason);
+        }
+    }
+}
+
+// Bulk delete users and students
+async function bulkDeleteUsers(userIds, studentIds, reason) {
+    try {
+        const response = await fetch('/api/admin/users/bulk-delete', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                user_ids: userIds,
+                student_ids: studentIds,
+                reason: reason
+            })
+        });
+        
+        const data = await response.json();
+        
+        let message = `Bulk deletion completed!\\n\\n`;
+        message += `✅ Users deleted: ${data.deleted_users.length}\\n`;
+        message += `✅ Students deleted: ${data.deleted_students.length}\\n`;
+        
+        if (data.errors.length > 0) {
+            message += `❌ Errors: ${data.errors.length}\\n\\n`;
+            message += 'Some deletions failed:\\n';
+            data.errors.forEach(error => {
+                message += `- ${error.type} ID ${error.id}: ${error.error}\\n`;
+            });
+        }
+        
+        alert(message);
+        
+        // Reload data
+        loadUsers();
+        loadStudents();
+        
+        // Clear selections
+        document.getElementById('select-all-users').checked = false;
+        document.getElementById('select-all-students').checked = false;
+        updateBulkDeleteButton();
+        updateBulkDeleteStudentButton();
+        
+    } catch (error) {
+        console.error('Error bulk deleting:', error);
+        alert('❌ Failed to perform bulk deletion due to network error');
+    }
+}
+
+// Show audit log modal
+async function showAuditLogModal() {
+    try {
+        const response = await fetch('/api/admin/deletion-audit?page=1&per_page=20');
+        const data = await response.json();
+        
+        if (!response.ok) {
+            alert('Error: ' + (data.error || 'Failed to load audit log'));
+            return;
+        }
+        
+        let auditHTML = '<div class="audit-modal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; display: flex; justify-content: center; align-items: center;">';
+        auditHTML += '<div class="audit-content" style="background: white; padding: 30px; border-radius: 10px; max-width: 90%; max-height: 90%; overflow-y: auto; width: 800px;">';
+        auditHTML += '<div style="display: flex; justify-content: between; align-items: center; margin-bottom: 20px;"><h2>🔍 User Deletion Audit Log</h2>';
+        auditHTML += '<button onclick="closeAuditModal()" style="background: #dc3545; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; margin-left: auto;">✖ Close</button></div>';
+        
+        if (data.audit_records.length === 0) {
+            auditHTML += '<p>No deletion records found.</p>';
+        } else {
+            auditHTML += '<table style="width: 100%; border-collapse: collapse; margin-top: 10px;">';
+            auditHTML += '<thead><tr style="background-color: #f8f9fa;"><th style="padding: 10px; border: 1px solid #dee2e6;">Date</th><th style="padding: 10px; border: 1px solid #dee2e6;">Deleted User</th><th style="padding: 10px; border: 1px solid #dee2e6;">Role</th><th style="padding: 10px; border: 1px solid #dee2e6;">Deleted By</th><th style="padding: 10px; border: 1px solid #dee2e6;">Affected Data</th></tr></thead><tbody>';
+            
+            data.audit_records.forEach(record => {
+                const date = new Date(record.deleted_at).toLocaleString();
+                auditHTML += `<tr>`;
+                auditHTML += `<td style="padding: 10px; border: 1px solid #dee2e6;">${date}</td>`;
+                auditHTML += `<td style="padding: 10px; border: 1px solid #dee2e6;"><strong>${record.deleted_username}</strong></td>`;
+                auditHTML += `<td style="padding: 10px; border: 1px solid #dee2e6;"><span class="status ${record.deleted_user_role}">${record.deleted_user_role}</span></td>`;
+                auditHTML += `<td style="padding: 10px; border: 1px solid #dee2e6;">${record.deleted_by_admin_username}</td>`;
+                auditHTML += `<td style="padding: 10px; border: 1px solid #dee2e6;">Lessons: ${record.affected_lessons_count || 0}, Assignments: ${record.affected_assignments_count || 0}</td>`;
+                auditHTML += `</tr>`;
+            });
+            
+            auditHTML += '</tbody></table>';
+            
+            // Add pagination info
+            auditHTML += `<div style="margin-top: 15px; text-align: center; color: #666;">Showing ${data.audit_records.length} of ${data.pagination.total} records</div>`;
+        }
+        
+        auditHTML += '</div></div>';
+        
+        // Add modal to page
+        const modalDiv = document.createElement('div');
+        modalDiv.id = 'audit-modal';
+        modalDiv.innerHTML = auditHTML;
+        document.body.appendChild(modalDiv);
+        
+    } catch (error) {
+        console.error('Error loading audit log:', error);
+        alert('❌ Failed to load audit log due to network error');
+    }
+}
+
+// Close audit log modal
+function closeAuditModal() {
+    const modal = document.getElementById('audit-modal');
+    if (modal) {
+        document.body.removeChild(modal);
+    }
+}
+</script>
+{% endblock %}

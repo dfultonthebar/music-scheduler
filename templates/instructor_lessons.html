@@ -1,0 +1,205 @@
+
+{% extends "base.html" %}
+
+{% block title %}My Lessons - Music Scheduler{% endblock %}
+
+{% block content %}
+<div class="header">
+    <h1>📅 My Lessons</h1>
+    <div class="nav">
+        <a href="/instructor">← Back to Dashboard</a>
+        <span>{{ session.user.username }}</span>
+        <a href="/logout">Logout</a>
+    </div>
+</div>
+
+{% if error %}
+<div class="alert alert-error">
+    {{ error }}
+</div>
+{% endif %}
+
+{% if success %}
+<div class="alert alert-success">
+    {{ success }}
+</div>
+{% endif %}
+
+<!-- Lessons List -->
+<div class="section">
+    <h2>All My Lessons</h2>
+    <div style="margin-bottom: 1rem;">
+        <label for="filter-date">Filter by date:</label>
+        <input type="date" id="filter-date" style="margin-left: 0.5rem;" onchange="filterLessons()">
+        <button onclick="clearFilter()" class="btn-secondary" style="width: auto; margin-left: 0.5rem; padding: 0.5rem 1rem;">Clear Filter</button>
+    </div>
+    <div id="lessons-list">
+        <p>Loading lessons...</p>
+    </div>
+</div>
+
+<!-- Add Lesson Notes Modal -->
+<div id="notes-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 2rem; border-radius: 10px; width: 90%; max-width: 500px;">
+        <h3>Update Lesson Notes</h3>
+        <form id="notes-form">
+            <input type="hidden" id="lesson-id">
+            <div class="form-group">
+                <label for="lesson-notes">Notes:</label>
+                <textarea id="lesson-notes" rows="4" placeholder="Add notes about the lesson..."></textarea>
+            </div>
+            <div style="display: flex; gap: 1rem;">
+                <button type="submit" class="btn" style="flex: 1;">Save Notes</button>
+                <button type="button" onclick="closeNotesModal()" class="btn-secondary" style="flex: 1;">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+let allLessons = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadLessons();
+    
+    // Notes form handler
+    document.getElementById('notes-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const lessonId = document.getElementById('lesson-id').value;
+        const notes = document.getElementById('lesson-notes').value;
+        
+        try {
+            const response = await fetch('/api/lesson-notes', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    lesson_id: lessonId,
+                    notes: notes
+                })
+            });
+            
+            if (response.ok) {
+                closeNotesModal();
+                loadLessons(); // Refresh the list
+                showAlert('Notes updated successfully!', 'success');
+            } else {
+                const error = await response.json();
+                showAlert(error.message || 'Failed to update notes', 'error');
+            }
+        } catch (error) {
+            console.error('Error updating notes:', error);
+            showAlert('Failed to update notes', 'error');
+        }
+    });
+});
+
+async function loadLessons() {
+    try {
+        const response = await fetch('/api/my-lessons');
+        const data = await response.json();
+        
+        if (data.lessons) {
+            allLessons = data.lessons.sort((a, b) => new Date(b.lesson_date + ' ' + b.lesson_time) - new Date(a.lesson_date + ' ' + a.lesson_time));
+            displayLessons(allLessons);
+        }
+    } catch (error) {
+        console.error('Error loading lessons:', error);
+        document.getElementById('lessons-list').innerHTML = '<p>Error loading lessons.</p>';
+    }
+}
+
+function displayLessons(lessons) {
+    const lessonsList = document.getElementById('lessons-list');
+    
+    if (lessons.length === 0) {
+        lessonsList.innerHTML = '<p>No lessons found.</p>';
+        return;
+    }
+    
+    const table = `
+        <table>
+            <thead>
+                <tr>
+                    <th>Student</th>
+                    <th>Date</th>
+                    <th>Time</th>
+                    <th>Duration</th>
+                    <th>Instrument</th>
+                    <th>Notes</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${lessons.map(lesson => `
+                    <tr>
+                        <td>${lesson.student_name}</td>
+                        <td>${formatDate(lesson.lesson_date)}</td>
+                        <td>${lesson.lesson_time}</td>
+                        <td>${lesson.duration} min</td>
+                        <td><span class="badge">${lesson.instrument}</span></td>
+                        <td>${lesson.notes ? lesson.notes.substring(0, 50) + (lesson.notes.length > 50 ? '...' : '') : 'No notes'}</td>
+                        <td>
+                            <button onclick="openNotesModal(${lesson.id}, '${lesson.notes || ''}')" class="btn" style="width: auto; padding: 0.25rem 0.5rem; font-size: 0.8rem;">
+                                Edit Notes
+                            </button>
+                        </td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
+    lessonsList.innerHTML = table;
+}
+
+function filterLessons() {
+    const filterDate = document.getElementById('filter-date').value;
+    if (filterDate) {
+        const filtered = allLessons.filter(lesson => lesson.lesson_date === filterDate);
+        displayLessons(filtered);
+    } else {
+        displayLessons(allLessons);
+    }
+}
+
+function clearFilter() {
+    document.getElementById('filter-date').value = '';
+    displayLessons(allLessons);
+}
+
+function openNotesModal(lessonId, currentNotes) {
+    document.getElementById('lesson-id').value = lessonId;
+    document.getElementById('lesson-notes').value = currentNotes;
+    document.getElementById('notes-modal').style.display = 'block';
+}
+
+function closeNotesModal() {
+    document.getElementById('notes-modal').style.display = 'none';
+}
+
+function formatDate(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+        weekday: 'short', 
+        year: 'numeric', 
+        month: 'short', 
+        day: 'numeric' 
+    });
+}
+
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type}`;
+    alertDiv.textContent = message;
+    
+    const container = document.querySelector('.container');
+    const header = document.querySelector('.header');
+    container.insertBefore(alertDiv, header.nextSibling);
+    
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 5000);
+}
+</script>
+{% endblock %}

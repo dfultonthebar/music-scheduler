@@ -1,0 +1,121 @@
+
+{% extends "base.html" %}
+
+{% block title %}My Students - Music Scheduler{% endblock %}
+
+{% block content %}
+<div class="header">
+    <h1>👥 My Students</h1>
+    <div class="nav">
+        <a href="/instructor">← Back to Dashboard</a>
+        <span>{{ session.user.username }}</span>
+        <a href="/logout">Logout</a>
+    </div>
+</div>
+
+{% if error %}
+<div class="alert alert-error">
+    {{ error }}
+</div>
+{% endif %}
+
+{% if success %}
+<div class="alert alert-success">
+    {{ success }}
+</div>
+{% endif %}
+
+<!-- Students List -->
+<div class="section">
+    <h2>Students I Teach</h2>
+    <div id="students-list">
+        <p>Loading students...</p>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    loadMyStudents();
+});
+
+async function loadMyStudents() {
+    try {
+        const response = await fetch('/api/my-lessons');
+        const data = await response.json();
+        
+        if (data.lessons) {
+            // Extract unique students from lessons
+            const studentMap = new Map();
+            data.lessons.forEach(lesson => {
+                if (!studentMap.has(lesson.student_id)) {
+                    studentMap.set(lesson.student_id, {
+                        id: lesson.student_id,
+                        name: lesson.student_name,
+                        instruments: new Set(),
+                        totalLessons: 0,
+                        upcomingLessons: 0
+                    });
+                }
+                
+                const student = studentMap.get(lesson.student_id);
+                student.instruments.add(lesson.instrument);
+                student.totalLessons++;
+                
+                // Check if lesson is upcoming (today or future)
+                const today = new Date().toISOString().split('T')[0];
+                if (lesson.lesson_date >= today) {
+                    student.upcomingLessons++;
+                }
+            });
+            
+            const students = Array.from(studentMap.values());
+            displayStudents(students);
+        }
+    } catch (error) {
+        console.error('Error loading students:', error);
+        document.getElementById('students-list').innerHTML = '<p>Error loading students.</p>';
+    }
+}
+
+function displayStudents(students) {
+    const studentsList = document.getElementById('students-list');
+    
+    if (students.length === 0) {
+        studentsList.innerHTML = '<p>You don\'t have any students assigned yet.</p>';
+        return;
+    }
+    
+    const table = `
+        <table>
+            <thead>
+                <tr>
+                    <th>Student Name</th>
+                    <th>Instruments</th>
+                    <th>Total Lessons</th>
+                    <th>Upcoming Lessons</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${students.map(student => `
+                    <tr>
+                        <td>${student.name}</td>
+                        <td>
+                            ${Array.from(student.instruments).map(instrument => 
+                                `<span class="badge" style="margin-right: 0.25rem;">${instrument}</span>`
+                            ).join('')}
+                        </td>
+                        <td>${student.totalLessons}</td>
+                        <td>
+                            <span class="status ${student.upcomingLessons > 0 ? 'instructor' : 'admin'}">
+                                ${student.upcomingLessons}
+                            </span>
+                        </td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
+    studentsList.innerHTML = table;
+}
+</script>
+{% endblock %}

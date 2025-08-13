@@ -1,0 +1,598 @@
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Instructor Dashboard - Music Scheduler</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #333;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+            padding: 2rem;
+            min-width: 400px;
+            max-width: 800px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        .header h1 {
+            color: #5a67d8;
+            margin-bottom: 0.5rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #4a5568;
+        }
+        
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+        
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+            outline: none;
+            border-color: #5a67d8;
+            box-shadow: 0 0 0 3px rgba(90, 103, 216, 0.1);
+        }
+        
+        .btn {
+            background: #5a67d8;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            width: 100%;
+        }
+        
+        .btn:hover {
+            background: #4c51bf;
+        }
+        
+        .btn-secondary {
+            background: #718096;
+            margin-top: 1rem;
+        }
+        
+        .btn-secondary:hover {
+            background: #4a5568;
+        }
+        
+        .alert {
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-radius: 6px;
+        }
+        
+        .alert-error {
+            background: #fed7d7;
+            color: #c53030;
+            border: 1px solid #feb2b2;
+        }
+        
+        .alert-success {
+            background: #c6f6d5;
+            color: #276749;
+            border: 1px solid #9ae6b4;
+        }
+        
+        .nav {
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+        
+        .nav a {
+            color: #5a67d8;
+            text-decoration: none;
+            margin: 0 1rem;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+        
+        .nav a:hover {
+            background: #e2e8f0;
+        }
+        
+        .section {
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+        }
+        
+        .section h2 {
+            color: #2d3748;
+            margin-bottom: 1rem;
+            border-bottom: 2px solid #5a67d8;
+            padding-bottom: 0.5rem;
+        }
+        
+        .form-row {
+            display: flex;
+            gap: 1rem;
+        }
+        
+        .form-row .form-group {
+            flex: 1;
+        }
+        
+        .list-item {
+            padding: 0.75rem;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .list-item:last-child {
+            border-bottom: none;
+        }
+        
+        .badge {
+            background: #5a67d8;
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+        
+        th, td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        th {
+            background: #f7fafc;
+            font-weight: 600;
+            color: #4a5568;
+        }
+        
+        .status {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+        
+        .status.admin {
+            background: #c6f6d5;
+            color: #276749;
+        }
+        
+        .status.instructor {
+            background: #bee3f8;
+            color: #2b6cb0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        
+<div class="header">
+    <h1>🎵 Music Scheduler - Instructor Portal</h1>
+    <div class="nav">
+        <span>Welcome, test (instructor)</span>
+        <a href="/logout">Logout</a>
+    </div>
+</div>
+
+
+
+
+
+<!-- Navigation Menu -->
+<div class="section">
+    <h2>Instructor Menu</h2>
+    <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+        <a href="/instructor/lessons" class="btn" style="width: auto; margin: 0;">📅 My Lessons</a>
+        <a href="/instructor/availability" class="btn" style="width: auto; margin: 0; background: #38a169;">⏰ Manage Availability</a>
+        <a href="/instructor/schedule" class="btn" style="width: auto; margin: 0; background: #e53e3e;">📝 Schedule Lessons</a>
+        <a href="/instructor/students" class="btn" style="width: auto; margin: 0; background: #3182ce;">👥 My Students</a>
+    </div>
+</div>
+
+<!-- My Weekly Availability Schedule -->
+<div class="section">
+    <h2>📅 My Weekly Availability</h2>
+    <div id="weekly-availability">
+        <p>Loading availability schedule...</p>
+    </div>
+</div>
+
+<!-- Time Off Periods -->
+<div class="section">
+    <h2>🚫 Time Off Periods</h2>
+    <div id="time-off-periods">
+        <p>Loading time off periods...</p>
+    </div>
+</div>
+
+<!-- Visual Schedule Overview -->
+<div class="section">
+    <h2>📊 Schedule Overview</h2>
+    <div id="schedule-overview">
+        <p>Loading schedule overview...</p>
+    </div>
+</div>
+
+<!-- My Upcoming Lessons -->
+<div class="section">
+    <h2>Upcoming Lessons</h2>
+    <div id="upcoming-lessons">
+        <p>Loading upcoming lessons...</p>
+    </div>
+</div>
+
+<!-- Quick Stats -->
+<div class="section">
+    <h2>Quick Stats</h2>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+        <div style="background: #e6fffa; padding: 1rem; border-radius: 6px; text-align: center;">
+            <div style="font-size: 2rem; color: #319795;">📚</div>
+            <div style="font-size: 1.5rem; font-weight: bold; color: #2c7a7b;" id="total-lessons">-</div>
+            <div style="color: #4a5568;">Total Lessons</div>
+        </div>
+        <div style="background: #f0fff4; padding: 1rem; border-radius: 6px; text-align: center;">
+            <div style="font-size: 2rem; color: #38a169;">👥</div>
+            <div style="font-size: 1.5rem; font-weight: bold; color: #276749;" id="total-students">-</div>
+            <div style="color: #4a5568;">Students</div>
+        </div>
+        <div style="background: #ebf8ff; padding: 1rem; border-radius: 6px; text-align: center;">
+            <div style="font-size: 2rem; color: #3182ce;">🎵</div>
+            <div style="font-size: 1.5rem; font-weight: bold; color: #2c5282;" id="total-instruments">-</div>
+            <div style="color: #4a5568;">Instruments</div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Load data when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    loadWeeklyAvailability();
+    loadTimeOffPeriods();
+    loadScheduleOverview();
+    loadUpcomingLessons();
+    loadStats();
+});
+
+async function loadWeeklyAvailability() {
+    try {
+        const response = await fetch('/api/availability');
+        const data = await response.json();
+        
+        if (data.availability && data.availability.length > 0) {
+            const availabilityDiv = document.getElementById('weekly-availability');
+            
+            // Group availability by day
+            const dayGroups = {};
+            const dayOrder = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            
+            data.availability.forEach(slot => {
+                const dayName = slot.day_name || 'Unknown';
+                if (!dayGroups[dayName]) {
+                    dayGroups[dayName] = [];
+                }
+                dayGroups[dayName].push(slot);
+            });
+            
+            let html = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">';
+            
+            dayOrder.forEach(day => {
+                if (dayGroups[day]) {
+                    html += `
+                        <div style="background: #f0fff4; padding: 1rem; border-radius: 6px; border-left: 4px solid #38a169;">
+                            <h4 style="margin: 0 0 0.5rem 0; color: #276749;">${day}</h4>
+                    `;
+                    
+                    dayGroups[day].forEach(slot => {
+                        html += `
+                            <div style="background: #e6fffa; padding: 0.5rem; margin: 0.25rem 0; border-radius: 4px; font-size: 0.9rem;">
+                                ${slot.start_time} - ${slot.end_time}
+                            </div>
+                        `;
+                    });
+                    
+                    html += '</div>';
+                }
+            });
+            
+            html += '</div>';
+            availabilityDiv.innerHTML = html;
+        } else {
+            document.getElementById('weekly-availability').innerHTML = 
+                '<p style="color: #e53e3e;">No availability schedule set. <a href="/instructor/availability">Set up your availability</a></p>';
+        }
+    } catch (error) {
+        console.error('Error loading availability:', error);
+        document.getElementById('weekly-availability').innerHTML = '<p>Error loading availability.</p>';
+    }
+}
+
+async function loadTimeOffPeriods() {
+    try {
+        const response = await fetch('/api/time-off');
+        const data = await response.json();
+        
+        if (data.time_off && data.time_off.length > 0) {
+            const timeOffDiv = document.getElementById('time-off-periods');
+            
+            // Filter for current and future time off
+            const today = new Date().toISOString().split('T')[0];
+            const upcomingTimeOff = data.time_off.filter(period => period.end_date >= today)
+                                                   .sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
+            
+            if (upcomingTimeOff.length > 0) {
+                let html = '<div style="display: flex; flex-direction: column; gap: 0.5rem;">';
+                
+                upcomingTimeOff.forEach(period => {
+                    const startDate = formatDate(period.start_date);
+                    const endDate = formatDate(period.end_date);
+                    const isActive = period.start_date <= today && period.end_date >= today;
+                    
+                    html += `
+                        <div style="background: ${isActive ? '#fed7d7' : '#fef5e7'}; padding: 1rem; border-radius: 6px; border-left: 4px solid ${isActive ? '#e53e3e' : '#ed8936'};">
+                            <strong>${isActive ? '🔴 Active:' : '⏳ Upcoming:'}</strong>
+                            ${startDate} - ${endDate}
+                            ${period.start_date === period.end_date ? '' : ` (${getDaysBetween(period.start_date, period.end_date)} days)`}
+                        </div>
+                    `;
+                });
+                
+                html += '</div>';
+                timeOffDiv.innerHTML = html;
+            } else {
+                timeOffDiv.innerHTML = '<p>No upcoming time off periods.</p>';
+            }
+        } else {
+            document.getElementById('time-off-periods').innerHTML = '<p>No time off periods scheduled.</p>';
+        }
+    } catch (error) {
+        console.error('Error loading time off:', error);
+        document.getElementById('time-off-periods').innerHTML = '<p>Error loading time off periods.</p>';
+    }
+}
+
+async function loadScheduleOverview() {
+    try {
+        // Load both availability and lessons for the overview
+        const [availResponse, lessonResponse, timeOffResponse] = await Promise.all([
+            fetch('/api/availability'),
+            fetch('/api/my-lessons'),
+            fetch('/api/time-off')
+        ]);
+        
+        const availData = await availResponse.json();
+        const lessonData = await lessonResponse.json();
+        const timeOffData = await timeOffResponse.json();
+        
+        const overviewDiv = document.getElementById('schedule-overview');
+        
+        // Get current week dates
+        const now = new Date();
+        const startOfWeek = new Date(now);
+        startOfWeek.setDate(now.getDate() - now.getDay()); // Start of week (Sunday)
+        
+        const weekDays = [];
+        for (let i = 0; i < 7; i++) {
+            const day = new Date(startOfWeek);
+            day.setDate(startOfWeek.getDate() + i);
+            weekDays.push({
+                date: day.toISOString().split('T')[0],
+                dayName: day.toLocaleDateString('en-US', { weekday: 'short' }),
+                dayNumber: i
+            });
+        }
+        
+        // Create schedule grid
+        let html = '<div style="background: #f7fafc; padding: 1rem; border-radius: 6px;">';
+        html += '<h4 style="margin: 0 0 1rem 0;">This Week\'s Schedule</h4>';
+        html += '<div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.5rem; text-align: center;">';
+        
+        // Create day headers and schedule blocks
+        weekDays.forEach(day => {
+            const lessons = (lessonData.lessons || []).filter(lesson => lesson.lesson_date === day.date);
+            const availability = (availData.availability || []).filter(avail => avail.day_of_week === day.dayNumber);
+            const isTimeOff = isDateInTimeOff(day.date, timeOffData.time_off || []);
+            
+            let dayColor = '#ffffff';
+            let status = 'No availability';
+            
+            if (isTimeOff) {
+                dayColor = '#fed7d7';
+                status = 'Time off';
+            } else if (lessons.length > 0) {
+                dayColor = '#bee3f8';
+                status = `${lessons.length} lesson${lessons.length > 1 ? 's' : ''}`;
+            } else if (availability.length > 0) {
+                dayColor = '#c6f6d5';
+                status = 'Available';
+            }
+            
+            html += `
+                <div style="background: ${dayColor}; padding: 0.75rem; border-radius: 4px; border: 1px solid #e2e8f0; min-height: 80px;">
+                    <div style="font-weight: bold; margin-bottom: 0.5rem;">${day.dayName}</div>
+                    <div style="font-size: 0.8rem; margin-bottom: 0.5rem;">${day.date.split('-').slice(1).join('/')}</div>
+                    <div style="font-size: 0.75rem; color: #4a5568;">${status}</div>
+                </div>
+            `;
+        });
+        
+        html += '</div>';
+        html += '<div style="margin-top: 1rem; display: flex; gap: 1rem; font-size: 0.8rem; justify-content: center;">';
+        html += '<span>🟢 Available</span><span>🔵 Scheduled</span><span>🔴 Time Off</span><span>⚪ Unavailable</span>';
+        html += '</div>';
+        html += '</div>';
+        
+        overviewDiv.innerHTML = html;
+    } catch (error) {
+        console.error('Error loading schedule overview:', error);
+        document.getElementById('schedule-overview').innerHTML = '<p>Error loading schedule overview.</p>';
+    }
+}
+
+async function loadUpcomingLessons() {
+    try {
+        const response = await fetch('/api/my-lessons');
+        const data = await response.json();
+        
+        if (data.lessons) {
+            const upcomingLessons = document.getElementById('upcoming-lessons');
+            
+            // Filter for upcoming lessons (today and future)
+            const today = new Date().toISOString().split('T')[0];
+            const upcoming = data.lessons.filter(lesson => lesson.lesson_date >= today)
+                                        .sort((a, b) => new Date(a.lesson_date + ' ' + a.lesson_time) - new Date(b.lesson_date + ' ' + b.lesson_time))
+                                        .slice(0, 5); // Show next 5 lessons
+            
+            if (upcoming.length === 0) {
+                upcomingLessons.innerHTML = '<p>No upcoming lessons scheduled.</p>';
+            } else {
+                const table = `
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Student</th>
+                                <th>Date</th>
+                                <th>Time</th>
+                                <th>Duration</th>
+                                <th>Instrument</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${upcoming.map(lesson => `
+                                <tr>
+                                    <td>${lesson.student_name}</td>
+                                    <td>${formatDate(lesson.lesson_date)}</td>
+                                    <td>${lesson.lesson_time}</td>
+                                    <td>${lesson.duration} minutes</td>
+                                    <td><span class="badge">${lesson.instrument}</span></td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+                upcomingLessons.innerHTML = table;
+            }
+            
+            // Update stats
+            document.getElementById('total-lessons').textContent = data.lessons.length;
+            const uniqueStudents = [...new Set(data.lessons.map(lesson => lesson.student_name))];
+            document.getElementById('total-students').textContent = uniqueStudents.length;
+            const uniqueInstruments = [...new Set(data.lessons.map(lesson => lesson.instrument))];
+            document.getElementById('total-instruments').textContent = uniqueInstruments.length;
+        }
+    } catch (error) {
+        console.error('Error loading lessons:', error);
+        document.getElementById('upcoming-lessons').innerHTML = '<p>Error loading lessons.</p>';
+    }
+}
+
+async function loadStats() {
+    try {
+        const response = await fetch('/api/instruments');
+        const data = await response.json();
+        // Additional stats can be loaded here
+    } catch (error) {
+        console.error('Error loading stats:', error);
+    }
+}
+
+function formatDate(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+        weekday: 'short', 
+        year: 'numeric', 
+        month: 'short', 
+        day: 'numeric' 
+    });
+}
+
+function getDaysBetween(startDate, endDate) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const diffTime = Math.abs(end - start);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays + 1; // Include both start and end dates
+}
+
+function isDateInTimeOff(date, timeOffPeriods) {
+    return timeOffPeriods.some(period => 
+        date >= period.start_date && date <= period.end_date
+    );
+}
+</script>
+
+    </div>
+    
+    <script>
+        // Simple form validation
+        function validateForm(form) {
+            const inputs = form.querySelectorAll('input[required], select[required]');
+            for (let input of inputs) {
+                if (!input.value.trim()) {
+                    alert('Please fill in all required fields');
+                    input.focus();
+                    return false;
+                }
+            }
+            return true;
+        }
+        
+        // Add form validation to all forms
+        document.addEventListener('DOMContentLoaded', function() {
+            const forms = document.querySelectorAll('form');
+            forms.forEach(form => {
+                form.addEventListener('submit', function(e) {
+                    if (!validateForm(this)) {
+                        e.preventDefault();
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>
