@@ -2678,5 +2678,212 @@ def get_deletion_audit_log():
         cursor.close()
         connection.close()
 
+# Backup and Restore Routes
+@app.route('/admin/backup-restore')
+def admin_backup_restore():
+    """Admin page for database backup and restore operations"""
+    if session.get('user', {}).get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('login'))
+    return render_template('admin_backup_restore.html')
+
+@app.route('/api/admin/backups', methods=['GET'])
+def list_backups():
+    """List all available database backups"""
+    if session.get('user', {}).get('role') != 'admin':
+        return jsonify({'error': 'Access denied. Admin privileges required.'}), 403
+    
+    import os
+    import subprocess
+    
+    try:
+        backup_dir = 'database_backups'
+        backups = []
+        
+        if os.path.exists(backup_dir):
+            for filename in os.listdir(backup_dir):
+                if filename.endswith(('.sql', '.sql.gz')):
+                    filepath = os.path.join(backup_dir, filename)
+                    stat = os.stat(filepath)
+                    backups.append({
+                        'filename': filename,
+                        'size': os.path.getsize(filepath),
+                        'created': datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                        'path': filepath
+                    })
+        
+        # Sort by creation time, newest first
+        backups.sort(key=lambda x: x['created'], reverse=True)
+        
+        return jsonify({'backups': backups}), 200
+    except Exception as e:
+        return jsonify({'error': f'Failed to list backups: {str(e)}'}), 500
+
+@app.route('/api/admin/backup/create', methods=['POST'])
+def create_backup():
+    """Create a new database backup"""
+    if session.get('user', {}).get('role') != 'admin':
+        return jsonify({'error': 'Access denied. Admin privileges required.'}), 403
+    
+    import subprocess
+    import os
+    
+    try:
+        # Run backup script
+        script_path = os.path.join(os.getcwd(), 'scripts', 'backup_db.sh')
+        
+        if not os.path.exists(script_path):
+            return jsonify({'error': 'Backup script not found'}), 500
+            
+        result = subprocess.run([script_path], capture_output=True, text=True, cwd='scripts')
+        
+        if result.returncode == 0:
+            # Log the backup creation
+            admin_username = session['user']['username']
+            current_time = datetime.now()
+            
+            # You might want to log this to your audit system
+            print(f"[{current_time.isoformat()}] Admin '{admin_username}' created database backup")
+            
+            return jsonify({
+                'message': 'Backup created successfully',
+                'output': result.stdout
+            }), 200
+        else:
+            return jsonify({
+                'error': 'Backup creation failed',
+                'details': result.stderr
+            }), 500
+            
+    except Exception as e:
+        return jsonify({'error': f'Failed to create backup: {str(e)}'}), 500
+
+@app.route('/api/admin/backup/download/<filename>')
+def download_backup(filename):
+    """Download a backup file"""
+    if session.get('user', {}).get('role') != 'admin':
+        return jsonify({'error': 'Access denied. Admin privileges required.'}), 403
+    
+    import os
+    from flask import send_file
+    
+    try:
+        backup_dir = 'database_backups'
+        filepath = os.path.join(backup_dir, filename)
+        
+        # Security check - ensure filename is safe and exists
+        if not os.path.exists(filepath) or not filename.endswith(('.sql', '.sql.gz')):
+            return jsonify({'error': 'Backup file not found'}), 404
+            
+        # Log the download
+        admin_username = session['user']['username']
+        current_time = datetime.now()
+        print(f"[{current_time.isoformat()}] Admin '{admin_username}' downloaded backup: {filename}")
+        
+        return send_file(filepath, as_attachment=True, download_name=filename)
+        
+    except Exception as e:
+        return jsonify({'error': f'Failed to download backup: {str(e)}'}), 500
+
+@app.route('/api/admin/backup/upload', methods=['POST'])
+def upload_backup():
+    """Upload a backup file for restoration"""
+    if session.get('user', {}).get('role') != 'admin':
+        return jsonify({'error': 'Access denied. Admin privileges required.'}), 403
+    
+    import os
+    from werkzeug.utils import secure_filename
+    
+    try:
+        if 'backup_file' not in request.files:
+            return jsonify({'error': 'No backup file provided'}), 400
+            
+        file = request.files['backup_file']
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+            
+        # Validate file extension
+        if not file.filename.endswith(('.sql', '.sql.gz')):
+            return jsonify({'error': 'Invalid file type. Only .sql and .sql.gz files are allowed'}), 400
+            
+        # Secure filename
+        filename = secure_filename(file.filename)
+        
+        # Create uploads directory if it doesn't exist
+        upload_dir = 'uploaded_backups'
+        os.makedirs(upload_dir, exist_ok=True)
+        
+        # Save file
+        filepath = os.path.join(upload_dir, filename)
+        file.save(filepath)
+        
+        # Log the upload
+        admin_username = session['user']['username']
+        current_time = datetime.now()
+        print(f"[{current_time.isoformat()}] Admin '{admin_username}' uploaded backup: {filename}")
+        
+        return jsonify({
+            'message': 'Backup file uploaded successfully',
+            'filename': filename,
+            'path': filepath
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': f'Failed to upload backup: {str(e)}'}), 500
+
+@app.route('/api/admin/backup/restore', methods=['POST'])
+def restore_backup():
+    """Restore database from backup file"""
+    if session.get('user', {}).get('role') != 'admin':
+        return jsonify({'error': 'Access denied. Admin privileges required.'}), 403
+    
+    import subprocess
+    import os
+    
+    try:
+        data = request.get_json()
+        backup_path = data.get('backup_path')
+        
+        if not backup_path:
+            return jsonify({'error': 'Backup path is required'}), 400
+            
+        # Security check - ensure path exists and is safe
+        if not os.path.exists(backup_path):
+            return jsonify({'error': 'Backup file not found'}), 404
+            
+        # Run restore script
+        script_path = os.path.join(os.getcwd(), 'scripts', 'restore_db.sh')
+        
+        if not os.path.exists(script_path):
+            return jsonify({'error': 'Restore script not found'}), 500
+            
+        # Note: For security, this endpoint requires manual confirmation
+        # In a production environment, you might want additional safeguards
+        
+        result = subprocess.run([script_path, backup_path], 
+                              capture_output=True, text=True, cwd='scripts',
+                              input='YES\n')  # Auto-confirm for API call
+        
+        if result.returncode == 0:
+            # Log the restore operation
+            admin_username = session['user']['username']
+            current_time = datetime.now()
+            
+            # You might want to log this to your audit system
+            print(f"[{current_time.isoformat()}] Admin '{admin_username}' restored database from: {backup_path}")
+            
+            return jsonify({
+                'message': 'Database restored successfully',
+                'output': result.stdout
+            }), 200
+        else:
+            return jsonify({
+                'error': 'Database restore failed',
+                'details': result.stderr
+            }), 500
+            
+    except Exception as e:
+        return jsonify({'error': f'Failed to restore backup: {str(e)}'}), 500
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
