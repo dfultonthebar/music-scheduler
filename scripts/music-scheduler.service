@@ -1,0 +1,43 @@
+
+[Unit]
+Description=Music Scheduler Flask Application
+After=network.target mysql.service
+Wants=mysql.service
+
+[Service]
+Type=simple
+User=music-scheduler
+Group=music-scheduler
+WorkingDirectory=/opt/music-scheduler
+Environment=PATH=/opt/music-scheduler/venv/bin
+Environment=FLASK_ENV=production
+ExecStart=/opt/music-scheduler/venv/bin/python3 /opt/music-scheduler/app.py
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=3
+TimeoutStartSec=60
+TimeoutStopSec=30
+
+# Security settings
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/music-scheduler
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+
+# Resource limits
+LimitNOFILE=1024
+LimitNPROC=512
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=music-scheduler
+
+[Install]
+WantedBy=multi-user.target
