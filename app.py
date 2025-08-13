@@ -1,7 +1,6 @@
 from flask import Flask, request, jsonify, session, render_template, redirect, url_for, flash
 from flask_session import Session
 from flask_bcrypt import Bcrypt
-from flask_cors import CORS
 import mysql.connector
 from mysql.connector import Error
 from datetime import datetime
@@ -21,8 +20,8 @@ app.config['SESSION_FILE_DIR'] = os.getenv('SESSION_FILE_DIR', './sessions')
 app.config['SESSION_FILE_THRESHOLD'] = 500
 app.config['SESSION_FILE_MODE'] = 0o660
 
-# Enable CORS for React frontend
-CORS(app, supports_credentials=True, origins=["http://localhost:3000", "http://52.34.76.202:3000"])
+# CORS disabled - Flask-only application with server-side rendering
+# CORS(app, supports_credentials=True, origins=["http://localhost:3000", "http://52.34.76.202:3000"])
 
 # Initialize extensions
 Session(app)

@@ -1,150 +1,210 @@
+# 🎵 Music Scheduler
 
-# Music Scheduler System
-
-A comprehensive Flask-based web application for managing music events, venues, artists, and bookings. This system provides an intuitive interface for scheduling concerts, managing venues, tracking artists, and handling customer bookings.
+A comprehensive Flask-based music lesson scheduling application with MySQL database integration. Features a modern tabbed admin interface for managing users, students, lessons, and system configuration.
 
 ## ✨ Features
 
-- **Event Management**: Create, edit, and manage music events with detailed scheduling
-- **Venue Management**: Maintain venue information, capacity, and contact details
-- **Artist Management**: Track artist information, genres, and contact details
-- **Booking System**: Handle customer bookings with payment tracking
-- **User Management**: Admin and user roles with secure authentication
-- **Backup System**: Automated daily backups with configurable retention
-- **Production Ready**: Systemd service with Nginx reverse proxy
+### 📊 Admin Dashboard
+- **Tabbed Interface**: Modern admin dashboard with three main tabs
+  - **Dashboard**: User management, email service status, student management
+  - **Backup & Restore**: Database backup creation, automatic backups, restore functionality
+  - **Settings**: Email configuration (SMTP), system settings
 
-## 🚀 One-Click Installation
+### 👥 User Management
+- Admin and Instructor user roles
+- Student registration and management
+- Secure password hashing with bcrypt
+- Session-based authentication
 
-The easiest way to install the Music Scheduler System is using our automated installer:
+### 📅 Scheduling System  
+- Lesson scheduling and management
+- Instructor availability tracking
+- Calendar integration
+- Time-off management for instructors
 
+### 📧 Email Notifications
+- Configurable SMTP settings
+- Email notifications for lessons
+- Service status monitoring
+- Email template management
+
+### 💾 Backup System
+- Manual database backup creation
+- Automated daily backups with systemd timers
+- Backup upload and restore functionality
+- Backup history and management
+
+### 🔒 Security Features
+- Session-based authentication
+- Secure password storage
+- Environment variable configuration
+- Dedicated system user for deployment
+
+## 🛠 Tech Stack
+
+- **Backend**: Flask 2.3.3 with Python 3
+- **Database**: MySQL with mysql-connector-python
+- **Frontend**: Server-side rendered Jinja2 templates
+- **Authentication**: Flask-Bcrypt + Flask-Session
+- **Deployment**: Systemd service + Nginx reverse proxy
+- **Backup**: Custom backup scripts with systemd timers
+
+## 📋 Prerequisites
+
+- **Operating System**: Ubuntu/Debian or RHEL/CentOS
+- **Python**: Python 3.7+ with pip and venv
+- **Database**: MySQL Server 5.7+
+- **Web Server**: Nginx (configured automatically)
+- **Permissions**: Sudo access for installation
+
+## 🚀 Quick Install
+
+### One-Click Installation
 ```bash
-curl -fsSL https://raw.githubusercontent.com/dfultonthebar/music-scheduler/main/install.sh | bash
-```
-
-Or clone and run manually:
-
-```bash
-git clone https://github.com/dfultonthebar/music-scheduler.git
+git clone <repository-url>
 cd music-scheduler
 chmod +x install.sh
 ./install.sh
 ```
 
-### What the installer does:
+The installation script will:
+1. Install system packages (Python3, MySQL, Nginx)
+2. Set up MySQL database with random credentials
+3. Create Python virtual environment and install dependencies
+4. Configure systemd service for the Flask app
+5. Set up Nginx reverse proxy
+6. Configure automatic backup system
+7. Create admin user with random password
 
-1. **System Dependencies**: Installs Python 3, MySQL, Nginx, and other required packages
-2. **Database Setup**: Creates MySQL database, user, and initializes schema
-3. **Application Setup**: Configures Python virtual environment and installs dependencies
-4. **Service Configuration**: Sets up systemd service for automatic startup
-5. **Web Server**: Configures Nginx reverse proxy for production deployment
-6. **Backup System**: Sets up automated daily backups with systemd timers
-7. **Admin Account**: Creates initial admin user with secure credentials
+### Manual Installation
 
-## 📋 System Requirements
+#### 1. Clone Repository
+```bash
+git clone <repository-url>
+cd music-scheduler
+```
 
-- **Operating System**: Ubuntu 18.04+, Debian 9+, CentOS 7+, or RHEL 7+
-- **Memory**: 1GB RAM minimum, 2GB recommended
-- **Storage**: 5GB available space
-- **Network**: Internet connection for package downloads
-
-## 🔧 Manual Installation
-
-If you prefer to install manually or need custom configuration:
-
-### Prerequisites
-
+#### 2. Install System Dependencies
 ```bash
 # Ubuntu/Debian
 sudo apt update
-sudo apt install python3 python3-pip python3-venv mysql-server nginx git
+sudo apt install python3 python3-pip python3-venv mysql-server nginx
 
-# CentOS/RHEL
-sudo yum install python3 python3-pip mysql-server nginx git
+# RHEL/CentOS
+sudo yum install python3 python3-pip mysql-server nginx
 ```
 
-### Database Setup
-
+#### 3. Set Up Database
 ```bash
-# Start MySQL service
 sudo systemctl start mysql
 sudo systemctl enable mysql
-
-# Create database and user
-sudo mysql
+sudo mysql -e "CREATE DATABASE music_scheduler;"
+sudo mysql -e "CREATE USER 'music_user'@'localhost' IDENTIFIED BY 'your_password';"
+sudo mysql -e "GRANT ALL PRIVILEGES ON music_scheduler.* TO 'music_user'@'localhost';"
+sudo mysql -e "FLUSH PRIVILEGES;"
 ```
 
-```sql
-CREATE DATABASE music_scheduler;
-CREATE USER 'music_user'@'localhost' IDENTIFIED BY 'secure_password_here';
-GRANT ALL PRIVILEGES ON music_scheduler.* TO 'music_user'@'localhost';
-FLUSH PRIVILEGES;
-EXIT;
-```
-
-### Application Setup
-
+#### 4. Configure Application
 ```bash
-# Clone repository
-git clone https://github.com/dfultonthebar/music-scheduler.git
-cd music-scheduler
-
 # Create virtual environment
 python3 -m venv venv
 source venv/bin/activate
-
-# Install dependencies
 pip install -r requirements.txt
 
-# Configure environment
+# Create environment file
 cp .env.example .env
 # Edit .env with your database credentials
-
-# Initialize database
-mysql music_scheduler < scripts/db-init.sql
-
-# Run application
-python app.py
 ```
 
-## 🖥️ Usage
+#### 5. Initialize Database
+```bash
+python3 -c "
+from app import app, get_db_connection
+import mysql.connector
 
-After installation, access the system at:
+# Run database initialization
+# Add your initialization code here
+"
+```
 
-- **Web Interface**: `http://your-server-ip` (if using Nginx)
-- **Direct Access**: `http://your-server-ip:5000` (Flask development server)
+#### 6. Start Application
+```bash
+# Development mode
+python3 app.py
+
+# Production mode (after setting up systemd service)
+sudo systemctl start music-scheduler
+```
+
+## 🎯 Usage
+
+### Access the Application
+- **Web Interface**: http://localhost (via Nginx)
+- **Direct Access**: http://localhost:5000 (Flask development server)
 
 ### Default Admin Credentials
+After installation, check the installer output for:
+- **Username**: admin
+- **Password**: [randomly generated - shown in installer output]
 
-The installer creates an admin account with randomly generated credentials. Check the installer output for the login details, or check the systemd logs:
+### Admin Dashboard Features
 
-```bash
-sudo journalctl -u music-scheduler --since="1 hour ago" | grep -i admin
-```
+#### 📊 Dashboard Tab
+- **Email Service Status**: Monitor and toggle email notifications
+- **Add New User**: Create admin or instructor accounts
+- **Add New Student**: Register new students with contact information
 
-## 🛠️ Configuration
+#### 💾 Backup & Restore Tab  
+- **Create Backup**: Generate database backups manually
+- **Automatic Backups**: Set up daily automated backups (2:00 AM)
+- **Restore Database**: Upload and restore from backup files
+- **Available Backups**: Browse, download, and restore from existing backups
 
-### Environment Variables
+#### ⚙️ Settings Tab
+- **Email Service Control**: Enable/disable email notifications system-wide
+- **Email Configuration**: Configure SMTP settings for notifications
+  - SMTP Server and Port
+  - Authentication credentials  
+  - From email address
 
-Edit `/opt/music-scheduler/.env` for production or `.env` for development:
+### Instructor Features
+- **Dashboard**: View assigned students and upcoming lessons
+- **Availability**: Set weekly availability and time-off periods
+- **Lessons**: Manage lesson schedules and add notes
+- **Students**: View student contact information and history
 
-```bash
+## 🔧 Configuration
+
+### Environment Variables (.env)
+```env
 FLASK_APP=app.py
 FLASK_ENV=production
 SECRET_KEY=your-secret-key-here
-DATABASE_URL=mysql://user:password@localhost/music_scheduler
-MYSQL_HOST=localhost
-MYSQL_DATABASE=music_scheduler
-MYSQL_USERNAME=music_user
-MYSQL_PASSWORD=your-password-here
+DB_HOST=localhost
+DB_USER=music_user
+DB_PASSWORD=your_db_password
+DB_NAME=music_scheduler
+SESSION_TYPE=filesystem
+SESSION_FILE_DIR=./sessions
 ```
 
-### Service Management
+### Database Configuration
+The application connects to MySQL using credentials from environment variables. The database schema is automatically initialized on first run.
 
+### Email Configuration
+Configure SMTP settings through the Settings tab in the admin dashboard:
+- Supports Gmail, Outlook, and other SMTP providers
+- Requires app passwords for Gmail
+- Email notifications can be enabled/disabled system-wide
+
+## 🛠 Service Management
+
+### Systemd Service (Production)
 ```bash
-# Check service status
+# Service status
 sudo systemctl status music-scheduler
 
-# Start/Stop/Restart service
+# Start/stop/restart
 sudo systemctl start music-scheduler
 sudo systemctl stop music-scheduler
 sudo systemctl restart music-scheduler
@@ -153,138 +213,163 @@ sudo systemctl restart music-scheduler
 sudo journalctl -u music-scheduler -f
 ```
 
-### Backup Management
-
-```bash
-# Check backup status
-sudo systemctl status music-scheduler-backup.timer
-
-# Run manual backup
-sudo /opt/music-scheduler/backup/backup.sh
-
-# View backup logs
-sudo journalctl -u music-scheduler-backup
-
-# List current backups
-ls -la /var/backups/music-scheduler/
+### Nginx Configuration
+The installer sets up Nginx as a reverse proxy:
+```nginx
+server {
+    listen 80;
+    server_name localhost;
+    
+    location / {
+        proxy_pass http://127.0.0.1:5000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+    
+    location /static {
+        alias /opt/music-scheduler/static;
+        expires 30d;
+    }
+}
 ```
 
-## 📊 Database Schema
+## 💾 Backup System
 
-The system uses the following main tables:
+### Automatic Backups
+- **Schedule**: Daily at 2:00 AM via systemd timer
+- **Location**: `/opt/music-scheduler/database_backups/`
+- **Format**: Compressed SQL dumps (`*.sql.gz`)
+- **Retention**: Configurable (default: 30 days)
 
-- **users**: User accounts and authentication
-- **venues**: Venue information and capacity
-- **artists**: Artist profiles and contact details
-- **events**: Event scheduling and details
-- **bookings**: Customer bookings and payments
-- **settings**: System configuration
+### Manual Backup
+```bash
+# Create backup via web interface (Backup & Restore tab)
+# Or via command line:
+cd /opt/music-scheduler
+./backup/backup.sh
+```
 
-## 🔒 Security Features
+### Restore Process
+1. Access **Backup & Restore** tab in admin dashboard
+2. **Upload** backup file or select from available backups
+3. Click **Restore Database** (⚠️ This replaces all current data)
+4. Restart the application service
 
-- **Password Hashing**: Uses bcrypt for secure password storage
-- **Session Management**: Secure Flask session handling
-- **SQL Injection Protection**: Parameterized queries throughout
-- **Service Isolation**: Runs as dedicated system user
-- **File Permissions**: Restricted access to configuration files
-- **Backup Encryption**: Compressed backup files with restricted access
+## 📁 Project Structure
 
-## 🔧 Troubleshooting
+```
+music-scheduler/
+├── app.py                  # Main Flask application
+├── email_service.py        # Email service functionality
+├── requirements.txt        # Python dependencies
+├── install.sh             # One-click installation script
+├── .env                   # Environment configuration
+├── README.md              # This file
+├── templates/             # Flask Jinja2 templates
+│   ├── base.html         # Base template
+│   ├── dashboard.html    # Admin dashboard (tabbed interface)
+│   ├── login.html        # Login page
+│   ├── instructor_*.html # Instructor templates
+│   └── admin_*.html      # Admin templates
+├── static/               # Static assets
+│   └── favicon.ico       # Application icon
+├── scripts/              # System scripts
+│   ├── db-init.sql      # Database initialization
+│   ├── backup_db.sh     # Database backup script
+│   ├── restore_db.sh    # Database restore script
+│   └── music-scheduler.service # Systemd service file
+├── backup/               # Backup system
+│   └── backup.sh         # Main backup script
+├── database_backups/     # Database backup storage
+├── uploaded_backups/     # User-uploaded backup files
+├── logs/                 # Application logs
+├── sessions/             # Flask session storage
+├── docs/                 # Additional documentation
+└── venv/                 # Python virtual environment
+```
+
+## 🚨 Troubleshooting
 
 ### Common Issues
 
-1. **Service won't start**:
-   ```bash
-   sudo systemctl status music-scheduler
-   sudo journalctl -u music-scheduler --no-pager
-   ```
+#### Database Connection Error
+```bash
+# Check MySQL service
+sudo systemctl status mysql
 
-2. **Database connection errors**:
-   - Check MySQL service: `sudo systemctl status mysql`
-   - Verify credentials in `.env` file
-   - Test database connection: `mysql -u music_user -p music_scheduler`
+# Check credentials in .env file
+cat .env | grep DB_
 
-3. **Permission errors**:
-   ```bash
-   sudo chown -R music-scheduler:music-scheduler /opt/music-scheduler
-   ```
+# Test database connection
+mysql -u music_user -p music_scheduler
+```
 
-4. **Port conflicts**:
-   - Check if port 5000 is in use: `sudo netstat -tlnp | grep :5000`
-   - Modify port in `app.py` if needed
+#### Permission Errors
+```bash
+# Fix file permissions
+sudo chown -R music-scheduler:music-scheduler /opt/music-scheduler
+sudo chmod +x /opt/music-scheduler/install.sh
+```
+
+#### Service Won't Start
+```bash
+# Check service logs
+sudo journalctl -u music-scheduler -f
+
+# Check Flask app directly
+cd /opt/music-scheduler
+source venv/bin/activate
+python3 app.py
+```
+
+#### Email Not Working
+1. Check SMTP settings in Settings tab
+2. Verify email service is enabled (toggle in Dashboard/Settings)
+3. Check firewall settings for SMTP ports
+4. For Gmail: Use app passwords, not regular passwords
 
 ### Log Files
-
-- **Application logs**: `sudo journalctl -u music-scheduler`
-- **Nginx logs**: `/var/log/nginx/access.log` and `/var/log/nginx/error.log`
+- **Application logs**: `/opt/music-scheduler/logs/`
+- **System service logs**: `sudo journalctl -u music-scheduler`
+- **Nginx logs**: `/var/log/nginx/error.log`
 - **MySQL logs**: `/var/log/mysql/error.log`
-- **Backup logs**: `sudo journalctl -u music-scheduler-backup`
 
-## 📚 API Documentation
+## 🔒 Security Considerations
 
-The system provides a RESTful API for integration with other systems. Key endpoints include:
+### Production Deployment
+- Change default admin password immediately
+- Use strong, unique passwords for database users
+- Configure firewall to restrict database access
+- Enable HTTPS with SSL certificates
+- Regular security updates for system packages
+- Monitor access logs for suspicious activity
 
-- `GET /api/events` - List all events
-- `POST /api/events` - Create new event
-- `GET /api/venues` - List all venues
-- `POST /api/bookings` - Create new booking
-
-(Full API documentation available in the application interface)
+### Database Security
+- Database user has minimal required privileges
+- Passwords stored with bcrypt hashing
+- Session data stored securely in filesystem
+- Environment variables for sensitive configuration
 
 ## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the LICENSE file for details.
 
 ## 🆘 Support
 
 For support and questions:
-
-- **Issues**: Create a GitHub issue
-- **Documentation**: Check this README and inline documentation
-- **Logs**: Always include relevant log output when reporting issues
-
-## 🔄 Updates and Maintenance
-
-### Updating the Application
-
-```bash
-cd /opt/music-scheduler
-sudo -u music-scheduler git pull origin main
-sudo -u music-scheduler venv/bin/pip install -r requirements.txt
-sudo systemctl restart music-scheduler
-```
-
-### Database Maintenance
-
-```bash
-# Backup before maintenance
-sudo /opt/music-scheduler/backup/backup.sh
-
-# Optimize database
-mysql -u music_user -p music_scheduler -e "OPTIMIZE TABLE events, bookings, venues, artists;"
-```
-
-### System Health Checks
-
-```bash
-# Check all services
-sudo systemctl status music-scheduler mysql nginx
-
-# Check disk space
-df -h
-
-# Check backup status
-ls -la /var/backups/music-scheduler/
-```
+- Create an issue in the GitHub repository
+- Check the troubleshooting section above
+- Review application logs for error details
 
 ---
 
-**Music Scheduler System** - Streamline your music event management with ease! 🎵
+**Built with Flask 🚀 | Designed for Music Schools 🎵**
