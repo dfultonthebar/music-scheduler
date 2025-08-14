@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Music Scheduler - Update Management</title>
+    <link rel="stylesheet" href="update_styles.css">
+</head>
+<body>
+    <!-- Update Management Section for Backup Page -->
+    <div id="update-management-section" class="update-section">
+        
+        <!-- Update Status Header -->
+        <div class="update-header">
+            <h2>🔄 System Updates</h2>
+            <div class="update-status" id="update-status">
+                <span class="status-indicator" id="status-indicator"></span>
+                <span class="status-text" id="status-text">Checking for updates...</span>
+            </div>
+        </div>
+
+        <!-- Active Notifications -->
+        <div id="update-notifications" class="notifications-container" style="display: none;">
+            <h3>📢 Update Notifications</h3>
+            <div id="notifications-list" class="notifications-list"></div>
+        </div>
+
+        <!-- Current System Information -->
+        <div class="system-info-container">
+            <div class="info-card">
+                <h3>📊 Current System</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <label>Current Version:</label>
+                        <span id="current-version" class="version-hash">Loading...</span>
+                    </div>
+                    <div class="info-item">
+                        <label>Last Updated:</label>
+                        <span id="last-updated">Loading...</span>
+                    </div>
+                    <div class="info-item">
+                        <label>Update Branch:</label>
+                        <span id="update-branch">main</span>
+                    </div>
+                    <div class="info-item">
+                        <label>Last Check:</label>
+                        <span id="last-check">Loading...</span>
+                    </div>
+                </div>
+                <button id="check-updates-btn" class="btn btn-primary">
+                    <span class="btn-icon">🔍</span>
+                    Check for Updates
+                </button>
+            </div>
+
+            <!-- Available Updates -->
+            <div id="available-updates" class="info-card" style="display: none;">
+                <h3>🆕 Available Updates</h3>
+                <div class="update-details">
+                    <div class="version-comparison">
+                        <div class="version-item current">
+                            <label>Current:</label>
+                            <span id="current-hash" class="version-hash"></span>
+                        </div>
+                        <div class="version-arrow">→</div>
+                        <div class="version-item available">
+                            <label>Available:</label>
+                            <span id="available-hash" class="version-hash"></span>
+                        </div>
+                    </div>
+                    
+                    <div class="commit-summary">
+                        <p><strong id="commit-count">0</strong> new commits available</p>
+                        <div id="latest-commit" class="latest-commit"></div>
+                    </div>
+
+                    <div class="update-actions">
+                        <button id="view-changelog-btn" class="btn btn-secondary">
+                            <span class="btn-icon">📝</span>
+                            View Changelog
+                        </button>
+                        <button id="download-update-btn" class="btn btn-primary">
+                            <span class="btn-icon">⬇️</span>
+                            Download Update
+                        </button>
+                        <button id="install-update-btn" class="btn btn-success" disabled>
+                            <span class="btn-icon">🚀</span>
+                            Install Update
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Changelog Modal -->
+        <div id="changelog-modal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>📝 Update Changelog</h3>
+                    <span class="modal-close" id="changelog-close">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <div id="changelog-content" class="changelog-content"></div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="changelog-cancel">Close</button>
+                    <button class="btn btn-primary" id="proceed-download">Download Update</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Update Progress -->
+        <div id="update-progress" class="progress-container" style="display: none;">
+            <h3>⚙️ Update in Progress</h3>
+            <div class="progress-bar">
+                <div id="progress-fill" class="progress-fill"></div>
+            </div>
+            <div id="progress-text" class="progress-text">Initializing...</div>
+            <div id="progress-log" class="progress-log"></div>
+        </div>
+
+        <!-- Update History -->
+        <div class="update-history-container">
+            <h3>📈 Update History</h3>
+            <div class="history-controls">
+                <select id="history-filter" class="filter-select">
+                    <option value="all">All Updates</option>
+                    <option value="successful">Successful</option>
+                    <option value="failed">Failed</option>
+                    <option value="rollback">Rollbacks</option>
+                </select>
+                <button id="refresh-history-btn" class="btn btn-small">
+                    <span class="btn-icon">🔄</span>
+                    Refresh
+                </button>
+            </div>
+            <div id="update-history-list" class="history-list">
+                <div class="loading-placeholder">Loading update history...</div>
+            </div>
+        </div>
+
+        <!-- Backup Management Integration -->
+        <div class="backup-integration">
+            <h3>💾 Backup Integration</h3>
+            <div class="backup-info">
+                <div class="backup-item">
+                    <label>Auto-backup before updates:</label>
+                    <span class="toggle-switch">
+                        <input type="checkbox" id="auto-backup-toggle" checked>
+                        <span class="toggle-slider"></span>
+                    </span>
+                </div>
+                <div class="backup-item">
+                    <label>Last backup:</label>
+                    <span id="last-backup">Loading...</span>
+                </div>
+                <div class="backup-actions">
+                    <button id="create-backup-btn" class="btn btn-secondary">
+                        <span class="btn-icon">💾</span>
+                        Create Backup Now
+                    </button>
+                    <button id="view-backups-btn" class="btn btn-secondary">
+                        <span class="btn-icon">📂</span>
+                        View All Backups
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Rollback Options -->
+        <div id="rollback-section" class="rollback-container" style="display: none;">
+            <h3>↩️ Rollback Options</h3>
+            <div class="rollback-warning">
+                <p><strong>⚠️ Warning:</strong> Rolling back will revert your system to a previous version. 
+                Make sure to create a backup of your current state first.</p>
+            </div>
+            <div id="rollback-options" class="rollback-list"></div>
+        </div>
+
+        <!-- Settings -->
+        <div class="update-settings">
+            <h3>⚙️ Update Settings</h3>
+            <div class="settings-grid">
+                <div class="setting-item">
+                    <label for="email-notifications">Email Notifications:</label>
+                    <input type="checkbox" id="email-notifications" checked>
+                </div>
+                <div class="setting-item">
+                    <label for="auto-check">Automatic Checks:</label>
+                    <input type="checkbox" id="auto-check" checked>
+                </div>
+                <div class="setting-item">
+                    <label for="notification-frequency">Frequency:</label>
+                    <select id="notification-frequency">
+                        <option value="immediate">Immediate</option>
+                        <option value="daily">Daily</option>
+                        <option value="weekly">Weekly</option>
+                    </select>
+                </div>
+                <div class="setting-item">
+                    <label for="backup-retention">Backup Retention:</label>
+                    <select id="backup-retention">
+                        <option value="30">30 days</option>
+                        <option value="60">60 days</option>
+                        <option value="90" selected>90 days</option>
+                    </select>
+                </div>
+            </div>
+            <button id="save-settings-btn" class="btn btn-primary">
+                <span class="btn-icon">💾</span>
+                Save Settings
+            </button>
+        </div>
+
+        <!-- System Status Footer -->
+        <div class="system-status-footer">
+            <div class="status-items">
+                <div class="status-item">
+                    <span class="status-label">System:</span>
+                    <span id="system-status" class="status-value">Operational</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Maintenance:</span>
+                    <span id="maintenance-status" class="status-value">None Scheduled</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Next Check:</span>
+                    <span id="next-check" class="status-value">Tomorrow 3:00 AM</span>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Confirmation Dialogs -->
+    <div id="confirmation-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="confirm-title">Confirm Action</h3>
+            </div>
+            <div class="modal-body">
+                <p id="confirm-message">Are you sure you want to proceed?</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="confirm-cancel">Cancel</button>
+                <button class="btn btn-primary" id="confirm-ok">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="update_manager.js"></script>
+</body>
+</html>

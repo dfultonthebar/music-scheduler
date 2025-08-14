@@ -1,0 +1,27 @@
+{
+  "github": {
+    "token": "YOUR_GITHUB_TOKEN_HERE",
+    "repository_url": "https://github.com/dfultonthebar/music-scheduler.git",
+    "repository_api_url": "https://api.github.com/repos/dfultonthebar/music-scheduler",
+    "owner": "dfultonthebar",
+    "repo": "music-scheduler"
+  },
+  "system": {
+    "local_path": "/path/to/music-scheduler",
+    "backup_path": "/home/ubuntu/music_scheduler_backups",
+    "log_path": "/home/ubuntu/music_scheduler_update_system/logs",
+    "database_path": "/path/to/music_scheduler.db",
+    "admin_emails": ["admin@example.com"],
+    "smtp_server": "localhost",
+    "smtp_port": 587,
+    "check_interval": "daily",
+    "auto_backup": true,
+    "require_admin_approval": true
+  },
+  "security": {
+    "verify_signatures": true,
+    "allowed_branches": ["main", "master"],
+    "max_rollback_days": 30,
+    "backup_retention_days": 90
+  }
+}
