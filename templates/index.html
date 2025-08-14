@@ -1,0 +1,82 @@
+
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Music Scheduler{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h1>🎵 Music Scheduler Dashboard</h1>
+    <p>Welcome to your music scheduling system! Manage your playlists and automate your music experience.</p>
+</div>
+
+<div class="grid grid-3">
+    <div class="card stat-card">
+        <span class="stat-number">{{ playlist_count }}</span>
+        <div class="stat-label">Playlists</div>
+    </div>
+    
+    <div class="card stat-card">
+        <span class="stat-number">{{ track_count }}</span>
+        <div class="stat-label">Music Tracks</div>
+    </div>
+    
+    <div class="card stat-card">
+        <span class="stat-number">{{ schedule_count }}</span>
+        <div class="stat-label">Active Schedules</div>
+    </div>
+</div>
+
+<div class="grid grid-2">
+    <div class="card">
+        <h2>🎶 Quick Actions</h2>
+        <div style="display: flex; gap: 1rem; margin-top: 1rem;">
+            <a href="{{ url_for('playlists') }}" class="btn">Manage Playlists</a>
+            <a href="{{ url_for('schedules') }}" class="btn btn-secondary">View Schedules</a>
+        </div>
+    </div>
+    
+    <div class="card">
+        <h2>📊 System Status</h2>
+        <p><strong>Server:</strong> <span style="color: #28a745;">Running</span></p>
+        <p><strong>Scheduler:</strong> <span style="color: #28a745;">Active</span></p>
+        <p><strong>Last Updated:</strong> {{ moment().format('MMMM Do YYYY, h:mm a') if moment else 'Just now' }}</p>
+    </div>
+</div>
+
+{% if recent_logs %}
+<div class="card">
+    <h2>📜 Recent Activity</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Schedule</th>
+                <th>Playlist</th>
+                <th>Status</th>
+                <th>Executed</th>
+                <th>Tracks Played</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in recent_logs %}
+            <tr>
+                <td>{{ log.schedule_name }}</td>
+                <td>{{ log.playlist_name }}</td>
+                <td>
+                    <span class="status-{{ 'active' if log.status == 'success' else 'inactive' }}">
+                        {{ log.status.title() }}
+                    </span>
+                </td>
+                <td>{{ log.executed_at }}</td>
+                <td>{{ log.tracks_played }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="card">
+    <h2>📜 Recent Activity</h2>
+    <p>No recent activity. Your scheduled music will appear here once executed.</p>
+</div>
+{% endif %}
+{% endblock %}

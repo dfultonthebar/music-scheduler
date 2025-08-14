@@ -1,0 +1,86 @@
+
+{% extends "base.html" %}
+
+{% block title %}{{ playlist.name }} - Music Scheduler{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            <h1>🎶 {{ playlist.name }}</h1>
+            <p>{{ playlist.description or 'No description' }}</p>
+        </div>
+        <div>
+            <button class="btn" onclick="playPlaylist({{ playlist.id }})">▶ Play Playlist</button>
+            <a href="{{ url_for('playlists') }}" class="btn btn-secondary">← Back to Playlists</a>
+        </div>
+    </div>
+</div>
+
+{% if tracks %}
+<div class="card">
+    <h2>Tracks ({{ tracks|length }})</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Title</th>
+                <th>Artist</th>
+                <th>Album</th>
+                <th>Duration</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for track in tracks %}
+            <tr>
+                <td>{{ track.order_position }}</td>
+                <td>{{ track.title }}</td>
+                <td>{{ track.artist }}</td>
+                <td>{{ track.album or '-' }}</td>
+                <td>
+                    {% if track.duration %}
+                        {{ (track.duration // 60)|int }}:{{ '%02d'|format(track.duration % 60) }}
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+                <td>
+                    <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="playTrack({{ track.id }})">▶ Play</button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="card" style="text-align: center;">
+    <h2>No Tracks in Playlist</h2>
+    <p>Add some tracks to this playlist to get started.</p>
+    <button class="btn">+ Add Tracks</button>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function playPlaylist(playlistId) {
+    fetch(`/api/execute_playlist/${playlistId}`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(`🎵 Playing playlist: ${data.message}`);
+        } else {
+            alert(`❌ Error: ${data.error}`);
+        }
+    });
+}
+
+function playTrack(trackId) {
+    alert(`🎵 Playing track ID: ${trackId}`);
+    // In a real implementation, this would interface with audio playback system
+}
+</script>
+{% endblock %}

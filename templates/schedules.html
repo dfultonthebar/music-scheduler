@@ -1,0 +1,98 @@
+
+{% extends "base.html" %}
+
+{% block title %}Schedules - Music Scheduler{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h1>📅 Music Schedules</h1>
+        <a href="#" class="btn">+ Add New Schedule</a>
+    </div>
+</div>
+
+{% if schedules %}
+<div class="card">
+    <table>
+        <thead>
+            <tr>
+                <th>Schedule Name</th>
+                <th>Playlist</th>
+                <th>Type</th>
+                <th>Time</th>
+                <th>Status</th>
+                <th>Last Run</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for schedule in schedules %}
+            <tr id="schedule-{{ schedule.id }}">
+                <td>{{ schedule.name }}</td>
+                <td>{{ schedule.playlist_name }}</td>
+                <td>{{ schedule.schedule_type.title() }}</td>
+                <td>{{ schedule.schedule_time }}</td>
+                <td>
+                    <span class="status-{{ 'active' if schedule.is_active else 'inactive' }}">
+                        {{ 'Active' if schedule.is_active else 'Inactive' }}
+                    </span>
+                </td>
+                <td>{{ schedule.last_run or 'Never' }}</td>
+                <td>
+                    <button class="btn btn-success" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="executeSchedule({{ schedule.id }})">▶ Run Now</button>
+                    <button class="btn {{ 'btn-danger' if schedule.is_active else 'btn-secondary' }}" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="toggleSchedule({{ schedule.id }})">
+                        {{ 'Disable' if schedule.is_active else 'Enable' }}
+                    </button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="card" style="text-align: center;">
+    <h2>No Schedules Found</h2>
+    <p>Create your first schedule to automate your music playback.</p>
+    <a href="#" class="btn">Create First Schedule</a>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function executeSchedule(scheduleId) {
+    fetch(`/api/execute_schedule/${scheduleId}`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(`🎵 ${data.message}`);
+            location.reload(); // Refresh to show updated last run time
+        } else {
+            alert(`❌ Error: ${data.error}`);
+        }
+    })
+    .catch(error => {
+        alert(`❌ Error executing schedule: ${error}`);
+    });
+}
+
+function toggleSchedule(scheduleId) {
+    fetch(`/api/schedules/${scheduleId}/toggle`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload(); // Refresh to show updated status
+        } else {
+            alert(`❌ Error: ${data.error}`);
+        }
+    })
+    .catch(error => {
+        alert(`❌ Error toggling schedule: ${error}`);
+    });
+}
+</script>
+{% endblock %}

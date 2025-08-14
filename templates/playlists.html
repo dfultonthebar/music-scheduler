@@ -1,0 +1,58 @@
+
+{% extends "base.html" %}
+
+{% block title %}Playlists - Music Scheduler{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h1>🎶 Playlists</h1>
+        <a href="#" class="btn">+ Add New Playlist</a>
+    </div>
+</div>
+
+<div class="grid grid-2">
+    {% for playlist in playlists %}
+    <div class="card">
+        <h3>{{ playlist.name }}</h3>
+        <p>{{ playlist.description or 'No description' }}</p>
+        <div style="margin-top: 1rem;">
+            <span style="color: #666;">{{ playlist.track_count }} tracks</span>
+        </div>
+        <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+            <a href="{{ url_for('playlist_detail', playlist_id=playlist.id) }}" class="btn">View Details</a>
+            <button class="btn btn-secondary" onclick="playPlaylist({{ playlist.id }})">▶ Play Now</button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% if not playlists %}
+<div class="card" style="text-align: center;">
+    <h2>No Playlists Found</h2>
+    <p>Create your first playlist to get started with music scheduling.</p>
+    <a href="#" class="btn">Create First Playlist</a>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function playPlaylist(playlistId) {
+    fetch(`/api/execute_playlist/${playlistId}`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(`🎵 ${data.message}`);
+        } else {
+            alert(`❌ Error: ${data.error}`);
+        }
+    })
+    .catch(error => {
+        alert(`❌ Error playing playlist: ${error}`);
+    });
+}
+</script>
+{% endblock %}
